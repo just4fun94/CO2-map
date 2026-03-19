@@ -368,10 +368,22 @@ function renderCountries() {
       if (country) {
         const ratio = getBudgetRatio(feature.id, currentMetric);
         const ratioText = ratio ? `${ratio.toFixed(2)}×` : 'N/A';
-        const perCapita = country.co2 / country.pop;
+        let perCapita, unit;
+        if (currentMetric === 'hist') {
+          perCapita = country.hist != null ? (country.hist * 1000) / country.pop : null;
+          unit = 't cumul/cap';
+        } else if (currentMetric === 'cons' || currentMetric === 'paris' || currentMetric === 'paris2') {
+          const val = country.cons != null ? country.cons : country.co2;
+          perCapita = val != null ? val / country.pop : null;
+          unit = 't CO₂/cap';
+        } else {
+          perCapita = country.co2 != null ? country.co2 / country.pop : null;
+          unit = 't CO₂/cap';
+        }
+        const pcText = perCapita != null ? perCapita.toFixed(1) : 'N/A';
         layer.bindTooltip(
           `<strong>${country.name}</strong><br>` +
-          `${perCapita.toFixed(1)} t CO₂/cap<br>` +
+          `${pcText} ${unit}<br>` +
           `Budget ratio: ${ratioText}`,
           { sticky: true, className: 'country-tooltip' }
         );
