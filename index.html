@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CO₂ Budget Map — Who's Using More Than Their Fair Share?</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- TopoJSON Client (to decode world-atlas data) -->
+  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">CO₂ <span>Budget Map</span></div>
+    <div class="header-subtitle">See how countries compare to a fair per-capita carbon budget</div>
+
+    <div class="header-controls">
+      <div class="metric-buttons">
+        <button class="metric-btn active" data-metric="co2">Territorial</button>
+        <button class="metric-btn" data-metric="cons">Consumption</button>
+        <button class="metric-btn" data-metric="hist">Historical</button>
+      </div>
+
+      <div class="toggle-switch">
+        <label class="switch">
+          <input type="checkbox" id="scale-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <label for="scale-toggle" id="toggle-label">Budget View</label>
+      </div>
+    </div>
+  </header>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Info Panel (right sidebar) -->
+  <div id="info-panel"></div>
+
+  <!-- Legend -->
+  <div id="legend"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading map data…</p>
+  </div>
+
+  <!-- App Scripts -->
+  <script src="js/co2data.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

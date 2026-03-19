@@ -1,0 +1,530 @@
+/* ============================================================================
+   CO2 Budget Map — Styles
+   ============================================================================ */
+
+/* Reset & Base */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --panel-width: 380px;
+  --header-height: 56px;
+  --bg: #f5f6f8;
+  --panel-bg: #ffffff;
+  --text: #1a1a2e;
+  --text-muted: #666;
+  --text-light: #999;
+  --border: #e0e0e0;
+  --accent: #2563eb;
+  --green: #22aa66;
+  --yellow: #e6c320;
+  --red: #c8322b;
+  --shadow: 0 2px 12px rgba(0,0,0,0.12);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,0.18);
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 1000;
+  box-shadow: var(--shadow);
+  gap: 16px;
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  letter-spacing: -0.3px;
+}
+
+.header-title span {
+  color: var(--accent);
+}
+
+.header-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .header-subtitle {
+    display: block;
+  }
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* Metric Buttons */
+.metric-buttons {
+  display: flex;
+  gap: 2px;
+  background: #eee;
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.metric-btn {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.metric-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.5);
+}
+
+.metric-btn.active {
+  background: var(--panel-bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-switch label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent);
+}
+
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* ============================================================================
+   Map
+   ============================================================================ */
+
+#map {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  background: #dde4ec;
+}
+
+/* ============================================================================
+   Info Panel
+   ============================================================================ */
+
+#info-panel {
+  position: fixed;
+  top: var(--header-height);
+  right: 0;
+  width: var(--panel-width);
+  height: calc(100vh - var(--header-height));
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-lg);
+  z-index: 999;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#info-panel.visible {
+  transform: translateX(0);
+}
+
+.panel-content {
+  padding: 24px 20px;
+}
+
+.panel-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.panel-close:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.panel-content h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  padding-right: 32px;
+}
+
+.panel-content h3 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+
+/* Hero Ratio */
+.stat-hero {
+  text-align: center;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-hero.over-budget {
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+  color: #991b1b;
+}
+
+.stat-hero.under-budget {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+}
+
+.ratio-value {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ratio-label {
+  font-size: 14px;
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+.ratio-detail {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* Stat Grid */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stat-item {
+  background: var(--bg);
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-number {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Metrics Table */
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.metrics-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--border);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.metrics-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.metrics-table tr.active-metric {
+  background: #eef2ff;
+  font-weight: 600;
+}
+
+/* Budget Bar */
+.budget-bar-container {
+  margin-bottom: 20px;
+}
+
+.budget-bar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.budget-bar {
+  position: relative;
+  height: 16px;
+  background: #eee;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.5s ease;
+}
+
+.budget-bar-fill.over-budget {
+  background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+}
+
+.budget-bar-fill.under-budget {
+  background: linear-gradient(90deg, var(--green), #44bb77);
+}
+
+.budget-bar-marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 24px;
+  background: var(--text);
+  transform: translateX(-1px);
+}
+
+.budget-bar-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+/* Explanation */
+.explanation {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.explanation strong {
+  color: var(--text);
+}
+
+/* ============================================================================
+   Legend
+   ============================================================================ */
+
+#legend {
+  position: fixed;
+  bottom: 24px;
+  left: 12px;
+  background: var(--panel-bg);
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  z-index: 999;
+  font-size: 11px;
+}
+
+.legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.legend-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.legend-step {
+  flex: 1;
+  min-width: 24px;
+}
+
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* ============================================================================
+   Loading Overlay
+   ============================================================================ */
+
+#loading {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #ddd;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#loading p {
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ============================================================================
+   Leaflet Overrides
+   ============================================================================ */
+
+.country-tooltip {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  border: none;
+}
+
+.country-tooltip strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.leaflet-control-zoom a {
+  border-radius: 8px !important;
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  :root {
+    --panel-width: 100vw;
+    --header-height: 48px;
+  }
+
+  .header-title {
+    font-size: 15px;
+  }
+
+  .metric-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .toggle-switch label {
+    font-size: 11px;
+  }
+}
