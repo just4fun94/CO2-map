@@ -387,6 +387,16 @@ function renderCountries() {
           `Budget ratio: ${ratioText}`,
           { sticky: true, className: 'country-tooltip' }
         );
+      } else if (TERRITORY_NAMES[feature.id]) {
+        const name = TERRITORY_NAMES[feature.id];
+        const parent = TERRITORY_PARENTS[feature.id];
+        const note = parent
+          ? `Data included under ${parent}`
+          : 'No data available';
+        layer.bindTooltip(
+          `<strong>${name}</strong><br>${note}`,
+          { sticky: true, className: 'country-tooltip' }
+        );
       }
 
       // Click handler

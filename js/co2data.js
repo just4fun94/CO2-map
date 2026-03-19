@@ -9,6 +9,48 @@
 //   cons = consumption-based CO2 emissions in Mt (null if unavailable)
 //   hist = cumulative CO2 emissions 1750-2023 in Gt (gigatonnes)
 
+// Territories whose emissions are counted under a parent country
+const TERRITORY_PARENTS = {
+  "732": "Morocco",           // Western Sahara
+  "254": "France",            // French Guiana
+  "312": "France",            // Guadeloupe
+  "474": "France",            // Martinique
+  "638": "France",            // Réunion
+  "175": "France",            // Mayotte
+  "652": "France",            // Saint Barthélemy
+  "663": "France",            // Saint Martin
+  "831": "United Kingdom",    // Guernsey
+  "832": "United Kingdom",    // Jersey
+  "833": "United Kingdom",    // Isle of Man
+  "248": "Finland",           // Åland Islands
+  "016": "United States",     // American Samoa
+  "574": "Australia",         // Norfolk Island
+  "162": "Australia",         // Christmas Island
+  "010": null,                // Antarctica (no parent)
+  "336": null                 // Vatican (negligible)
+};
+
+// Names for territories (not in CO2_DATA)
+const TERRITORY_NAMES = {
+  "732": "Western Sahara",
+  "254": "French Guiana",
+  "312": "Guadeloupe",
+  "474": "Martinique",
+  "638": "Réunion",
+  "175": "Mayotte",
+  "652": "Saint Barthélemy",
+  "663": "Saint Martin",
+  "831": "Guernsey",
+  "832": "Jersey",
+  "833": "Isle of Man",
+  "248": "Åland Islands",
+  "016": "American Samoa",
+  "574": "Norfolk Island",
+  "162": "Christmas Island",
+  "010": "Antarctica",
+  "336": "Vatican City"
+};
+
 const CO2_DATA = {
   "004": { name: 'Afghanistan', pop: 41.455, co2: 10.516, cons: null, hist: 0.232 },
   "008": { name: 'Albania', pop: 2.812, co2: 4.417, cons: 5.382, hist: 0.303 },
