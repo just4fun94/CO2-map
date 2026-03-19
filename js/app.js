@@ -460,24 +460,26 @@ function showInfoPanel(isoCode) {
 
   // Paris 1.5°C
   if (stats.co2) {
-    const parisPC = stats.co2 / stats.population;
+    const parisVal = stats.cons != null ? stats.cons : stats.co2;
+    const parisPC = parisVal / stats.population;
     const parisAllowance = PARIS_BUDGET.perCapita;
     metricRows.push({
       label: 'Paris 1.5°C',
       value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} t/cap`,
-      total: `${stats.co2.toFixed(0)} Mt`,
+      total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris'
     });
   }
 
   // Paris 2.0°C
   if (stats.co2) {
-    const parisPC = stats.co2 / stats.population;
+    const parisVal = stats.cons != null ? stats.cons : stats.co2;
+    const parisPC = parisVal / stats.population;
     const paris2Allowance = PARIS_2_BUDGET.perCapita;
     metricRows.push({
       label: 'Paris 2.0°C',
       value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} t/cap`,
-      total: `${stats.co2.toFixed(0)} Mt`,
+      total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris2'
     });
   }
@@ -569,6 +571,16 @@ function showInfoPanel(isoCode) {
         <strong>${stats.name}</strong> emits at <strong>${ratio ? ratio.toFixed(1) + '×' : 'N/A'}</strong> that rate.
         At this pace, it would exhaust its fair share of the remaining budget in 
         <strong>${ratio ? Math.max(1, Math.round(activeParisBudget.yearsLeft / ratio)) : '?'} years</strong> instead of ${activeParisBudget.yearsLeft}.</p>
+        <p class="data-note">${stats.usedFallback
+          ? '⚠ Consumption-based data unavailable — using territorial emissions as fallback.'
+          : 'Using consumption-based emissions (includes imports, excludes exports).'}</p>
+        ` : currentMetric === 'cons' ? `
+        <p>If every person on Earth had an equal CO₂ budget, 
+        <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 
+        its emissions by <strong>${diffPercent}%</strong>.</p>
+        <p class="data-note">${stats.usedFallback
+          ? '⚠ Consumption-based data unavailable — using territorial emissions as fallback.'
+          : 'Using consumption-based emissions (includes imports, excludes exports).'}</p>
         ` : `
         <p>If every person on Earth had an equal CO₂ budget, 
         <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 

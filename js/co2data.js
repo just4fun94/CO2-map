@@ -271,7 +271,7 @@ function getBudgetRatio(isoCode, metric = "co2") {
   if (!d || !d.pop) return null;
   let val;
   if (metric === "paris" || metric === "paris2") {
-    val = d.co2; // compare current territorial emissions to Paris-aligned budget
+    val = d.cons != null ? d.cons : d.co2; // prefer consumption, fall back to territorial
   } else if (metric === "hist") {
     val = d.hist;
   } else if (metric === "cons") {
@@ -290,12 +290,16 @@ function getCountryStats(isoCode, metric = 'co2') {
   if (!d) return null;
   const ratio = getBudgetRatio(isoCode, metric);
   let metricPerCapita = null;
+  let usedFallback = false;
   if (metric === 'paris' || metric === 'paris2') {
-    if (d.co2 != null && d.pop) metricPerCapita = d.co2 / d.pop;
-  } else if (metric === 'hist' && d.hist != null && d.pop) {
-    metricPerCapita = (d.hist * 1000) / d.pop; // Gt→Mt for per-capita
+    const val = d.cons != null ? d.cons : d.co2;
+    usedFallback = d.cons == null;
+    if (val != null && d.pop) metricPerCapita = val / d.pop;
+  } else if (metric === 'hist') {
+    if (d.hist != null && d.pop) metricPerCapita = (d.hist * 1000) / d.pop;
   } else if (metric === 'cons') {
     const val = d.cons != null ? d.cons : d.co2;
+    usedFallback = d.cons == null;
     if (val != null && d.pop) metricPerCapita = val / d.pop;
   } else {
     if (d.co2 != null && d.pop) metricPerCapita = d.co2 / d.pop;
@@ -310,6 +314,7 @@ function getCountryStats(isoCode, metric = 'co2') {
     historical: d.hist,
     ratio: ratio,
     metricPerCapita: metricPerCapita,
+    usedFallback: usedFallback,
     co2PerCapita: d.co2 && d.pop ? +(d.co2 / d.pop).toFixed(4) : null,
     consPerCapita: d.cons != null && d.pop ? +(d.cons / d.pop).toFixed(4) : null,
     histPerCapita: d.hist != null && d.pop ? +(d.hist / d.pop).toFixed(6) : null

@@ -491,6 +491,13 @@ input:checked + .slider:before {
   color: var(--text);
 }
 
+.data-note {
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.75;
+  margin-top: 8px;
+}
+
 /* ============================================================================
    Legend
    ============================================================================ */
