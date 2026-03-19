@@ -458,7 +458,22 @@ function showInfoPanel(isoCode) {
     });
   }
 
-  const worldPC = (WORLD_TOTALS.co2 / WORLD_TOTALS.population).toFixed(1);
+  // Paris 1.5°C
+  if (stats.co2) {
+    const parisPC = stats.co2 / stats.population;
+    const parisAllowance = PARIS_BUDGET.perCapita;
+    metricRows.push({
+      label: 'Paris 1.5°C',
+      value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} t/cap`,
+      total: `${stats.co2.toFixed(0)} Mt`,
+      active: currentMetric === 'paris'
+    });
+  }
+
+  const worldPC = currentMetric === 'paris'
+    ? PARIS_BUDGET.perCapita.toFixed(1)
+    : (WORLD_TOTALS.co2 / WORLD_TOTALS.population).toFixed(1);
+  const worldPCLabel = currentMetric === 'paris' ? 'Paris target t/cap' : 'World avg t/cap';
 
   panel.innerHTML = `
     <div class="panel-content">
@@ -473,8 +488,8 @@ function showInfoPanel(isoCode) {
       
       <div class="stat-hero ${ratioClass}">
         <div class="ratio-value">${ratioPercent}%</div>
-        <div class="ratio-label">of fair CO₂ budget used</div>
-        <div class="ratio-detail">${diffPercent}% ${overUnder} fair share</div>
+        <div class="ratio-label">${currentMetric === 'paris' ? 'of Paris 1.5°C budget' : 'of fair CO₂ budget used'}</div>
+        <div class="ratio-detail">${diffPercent}% ${overUnder} ${currentMetric === 'paris' ? 'Paris target' : 'fair share'}</div>
       </div>
 
       <div class="stat-grid">
@@ -488,7 +503,7 @@ function showInfoPanel(isoCode) {
         </div>
         <div class="stat-item">
           <div class="stat-number">${worldPC}</div>
-          <div class="stat-label">World avg t/cap</div>
+          <div class="stat-label">${worldPCLabel}</div>
         </div>
         <div class="stat-item">
           <div class="stat-number">${ratio ? ratio.toFixed(2) + '×' : 'N/A'}</div>
@@ -534,11 +549,18 @@ function showInfoPanel(isoCode) {
       </div>
 
       <div class="explanation">
+        ${currentMetric === 'paris' ? `
+        <p>To stay within the 1.5°C Paris budget, each person can emit ~${PARIS_BUDGET.perCapita.toFixed(1)} t/year.
+        <strong>${stats.name}</strong> emits at <strong>${ratio ? ratio.toFixed(1) + '×' : 'N/A'}</strong> that rate.
+        At this pace, it would exhaust its fair share of the remaining budget in 
+        <strong>${ratio ? Math.max(1, Math.round(PARIS_BUDGET.yearsLeft / ratio)) : '?'} years</strong> instead of 27.</p>
+        ` : `
         <p>If every person on Earth had an equal CO₂ budget, 
         <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 
         its emissions by <strong>${diffPercent}%</strong>.</p>
         <p>The country is shown at <strong>${ratioPercent}%</strong> of its actual geographic size 
         to reflect its emissions relative to a fair per-capita share.</p>
+        `}
       </div>
     </div>
   `;
