@@ -29,9 +29,18 @@
 
     <div class="header-controls">
       <div class="metric-buttons">
-        <button class="metric-btn active" data-metric="co2">Territorial</button>
-        <button class="metric-btn" data-metric="cons">Consumption</button>
-        <button class="metric-btn" data-metric="hist">Historical</button>
+        <button class="metric-btn active" data-metric="co2">
+          Territorial
+          <span class="metric-info">?<span class="metric-tooltip">CO₂ emitted within a country's borders — from power plants, factories, cars, etc. located in that country.</span></span>
+        </button>
+        <button class="metric-btn" data-metric="cons">
+          Consumption
+          <span class="metric-info">?<span class="metric-tooltip">CO₂ caused by a country's consumption, including emissions embedded in imports and excluding exports. Reflects a country's lifestyle footprint.</span></span>
+        </button>
+        <button class="metric-btn" data-metric="hist">
+          Historical
+          <span class="metric-info">?<span class="metric-tooltip">Cumulative CO₂ emitted since 1850. Shows who has contributed most to the CO₂ already in the atmosphere driving climate change today.</span></span>
+        </button>
       </div>
 
       <div class="toggle-switch">
@@ -40,6 +49,14 @@
           <span class="slider"></span>
         </label>
         <label for="scale-toggle" id="toggle-label">Budget View</label>
+      </div>
+
+      <div class="toggle-switch">
+        <label class="switch">
+          <input type="checkbox" id="colorblind-toggle">
+          <span class="slider"></span>
+        </label>
+        <label for="colorblind-toggle">Colorblind</label>
       </div>
     </div>
   </header>

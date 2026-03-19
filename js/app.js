@@ -42,87 +42,44 @@ function doesRingCrossAntimeridian(ring) {
 }
 
 /**
- * Interpolate latitude at the antimeridian crossing between two points.
+ * For a ring that crosses the antimeridian, shift coordinates so they
+ * are continuous. Uses the provided shiftEast flag to determine direction.
  */
-function interpolateLatAtAntimeridian(p1, p2) {
-  const d1 = 180 - Math.abs(p1[0]);
-  const d2 = 180 - Math.abs(p2[0]);
-  const denom = d1 + d2;
-  if (denom === 0) return (p1[1] + p2[1]) / 2;
-  const t = d1 / denom;
-  return p1[1] + t * (p2[1] - p1[1]);
+function normalizeRingAcrossAntimeridian(ring, shiftEast) {
+  if (!doesRingCrossAntimeridian(ring)) return ring;
+
+  if (shiftEast) {
+    // Shift western (negative) points by +360 to join eastern side
+    return ring.map(c => c[0] < -90 ? [c[0] + 360, c[1]] : c);
+  } else {
+    // Shift eastern (positive) points by -360 to join western side
+    return ring.map(c => c[0] > 90 ? [c[0] - 360, c[1]] : c);
+  }
 }
 
 /**
- * Split a ring that crosses the antimeridian into multiple rings,
- * each fully on one side.
+ * Determine the dominant hemisphere for an entire feature by counting
+ * all coordinates across all polygons.
  */
-function splitRingAtAntimeridian(ring) {
-  if (!doesRingCrossAntimeridian(ring)) return [ring];
-
-  const segments = [];
-  let current = [ring[0]];
-
-  for (let i = 0; i < ring.length - 1; i++) {
-    const p = ring[i];
-    const next = ring[i + 1];
-
-    if (Math.abs(p[0] - next[0]) > 180) {
-      const crossLat = interpolateLatAtAntimeridian(p, next);
-      const boundaryLng = p[0] > 0 ? 180 : -180;
-      current.push([boundaryLng, crossLat]);
-      segments.push(current);
-      current = [[-boundaryLng, crossLat], next];
-    } else {
-      current.push(next);
-    }
-  }
-  if (current.length > 0) segments.push(current);
-
-  // Merge first and last segment if they're on the same side
-  if (segments.length > 1) {
-    const sideOf = seg => {
-      const p = seg.find(c => Math.abs(c[0]) < 179.9);
-      return p ? (p[0] > 0 ? 1 : -1) : 0;
-    };
-    if (sideOf(segments[0]) === sideOf(segments[segments.length - 1])) {
-      segments[0] = segments.pop().concat(segments[0]);
-    }
-  }
-
-  // Close each segment into a proper ring
-  const rings = [];
-  for (const seg of segments) {
-    if (seg.length < 3) continue;
-    const closed = [...seg];
-    if (closed[0][0] !== closed[closed.length - 1][0] ||
-        closed[0][1] !== closed[closed.length - 1][1]) {
-      closed.push([closed[0][0], closed[0][1]]);
-    }
-    rings.push(closed);
-  }
-  return rings;
-}
-
-/**
- * Check if a feature's geometry has parts on both sides of the antimeridian.
- */
-function featureSpansAntimeridian(geometry) {
+function featureDominantSide(geometry) {
   const polygons = geometry.type === 'MultiPolygon'
     ? geometry.coordinates : [geometry.coordinates];
-  let hasEast = false, hasWest = false;
+  let east = 0, west = 0;
   for (const polygon of polygons) {
     for (const coord of polygon[0]) {
-      if (coord[0] > 170) hasEast = true;
-      if (coord[0] < -170) hasWest = true;
+      if (coord[0] > 0) east++;
+      else if (coord[0] < 0) west++;
     }
   }
-  return hasEast && hasWest;
+  return east >= west; // true = shift toward east (shift negatives by +360)
 }
 
 /**
- * Fix all antimeridian-crossing polygons in a GeoJSON FeatureCollection
- * by splitting them at the ±180° boundary.
+ * Fix all antimeridian-crossing polygons in a GeoJSON FeatureCollection.
+ * Instead of splitting, shifts coordinates so each polygon is continuous.
+ * The shift direction is determined per-feature so all sub-polygons
+ * of a country (e.g. Russia) shift consistently.
+ * Leaflet handles coordinates outside [-180, 180] correctly.
  */
 function fixAntimeridian(geojson) {
   return {
@@ -131,41 +88,39 @@ function fixAntimeridian(geojson) {
       const geom = feature.geometry;
       if (!geom) return feature;
 
-      let modified = false;
+      // Check if any ring crosses the antimeridian
+      const polygons = geom.type === 'MultiPolygon'
+        ? geom.coordinates
+        : geom.type === 'Polygon' ? [geom.coordinates] : null;
+      if (!polygons) return feature;
+
+      const hasCrossing = polygons.some(p => doesRingCrossAntimeridian(p[0]));
+      if (!hasCrossing) return feature;
+
+      // Determine shift direction from the whole feature
+      const shiftEast = featureDominantSide(geom);
 
       if (geom.type === 'Polygon') {
-        const outer = geom.coordinates[0];
-        if (!doesRingCrossAntimeridian(outer)) return feature;
-        const splitRings = splitRingAtAntimeridian(outer);
         return {
           ...feature,
-          properties: { ...feature.properties, _spansAntimeridian: true },
           geometry: {
-            type: 'MultiPolygon',
-            coordinates: splitRings.map(r => [r])
+            ...geom,
+            coordinates: geom.coordinates.map(r => normalizeRingAcrossAntimeridian(r, shiftEast))
           }
         };
       }
 
       if (geom.type === 'MultiPolygon') {
-        const newPolygons = [];
-        for (const polygon of geom.coordinates) {
-          const outer = polygon[0];
-          if (doesRingCrossAntimeridian(outer)) {
-            modified = true;
-            const splitRings = splitRingAtAntimeridian(outer);
-            for (const ring of splitRings) {
-              newPolygons.push([ring]);
-            }
-          } else {
-            newPolygons.push(polygon);
-          }
-        }
-        if (!modified) return feature;
         return {
           ...feature,
-          properties: { ...feature.properties, _spansAntimeridian: true },
-          geometry: { type: 'MultiPolygon', coordinates: newPolygons }
+          geometry: {
+            ...geom,
+            coordinates: geom.coordinates.map(polygon =>
+              doesRingCrossAntimeridian(polygon[0])
+                ? polygon.map(r => normalizeRingAcrossAntimeridian(r, shiftEast))
+                : polygon
+            )
+          }
         };
       }
 
@@ -180,15 +135,11 @@ function fixAntimeridian(geojson) {
 
 /**
  * Calculate the centroid of a polygon ring in Mercator coordinates.
- * If shiftLng is true, negative longitudes are shifted by +360 to avoid
- * the antimeridian discontinuity.
  */
-function ringCentroidMercator(ring, shiftLng) {
+function ringCentroidMercator(ring) {
   let sumX = 0, sumY = 0, count = 0;
   for (const coord of ring) {
-    let lng = coord[0];
-    if (shiftLng && lng < 0) lng += 360;
-    const [mx, my] = toMercator(lng, coord[1]);
+    const [mx, my] = toMercator(coord[0], coord[1]);
     sumX += mx;
     sumY += my;
     count++;
@@ -197,44 +148,14 @@ function ringCentroidMercator(ring, shiftLng) {
 }
 
 /**
- * Calculate the centroid for an entire feature (may have multiple polygons)
- * Uses area-weighted average of polygon centroids
- */
-function featureCentroidMercator(geometry) {
-  const polygons = geometry.type === 'MultiPolygon'
-    ? geometry.coordinates
-    : [geometry.coordinates];
-
-  const shiftLng = featureSpansAntimeridian(geometry);
-
-  let totalWeight = 0;
-  let weightedX = 0;
-  let weightedY = 0;
-
-  for (const polygon of polygons) {
-    const ring = polygon[0]; // outer ring
-    const centroid = ringCentroidMercator(ring, shiftLng);
-    // Approximate area weight by number of points (rough proxy)
-    const weight = ring.length;
-    weightedX += centroid[0] * weight;
-    weightedY += centroid[1] * weight;
-    totalWeight += weight;
-  }
-
-  return [weightedX / totalWeight, weightedY / totalWeight];
-}
-
-/**
  * Scale a single ring around a centroid in Mercator space.
- * Clamps output longitude to [-180, 180] to prevent rendering artifacts.
  */
 function scaleRing(ring, centroid, scaleFactor) {
   return ring.map(coord => {
     const [mx, my] = toMercator(coord[0], coord[1]);
     const newX = centroid[0] + scaleFactor * (mx - centroid[0]);
     const newY = centroid[1] + scaleFactor * (my - centroid[1]);
-    let [newLng, lat] = fromMercator(newX, newY);
-    newLng = Math.max(-180, Math.min(180, newLng));
+    const [newLng, lat] = fromMercator(newX, newY);
     return [newLng, lat];
   });
 }
@@ -256,13 +177,13 @@ function scaleFeature(feature, ratio) {
   let newCoordinates;
 
   if (geometry.type === 'Polygon') {
-    const centroid = ringCentroidMercator(geometry.coordinates[0], false);
+    const centroid = ringCentroidMercator(geometry.coordinates[0]);
     newCoordinates = geometry.coordinates.map(ring =>
       scaleRing(ring, centroid, scaleFactor)
     );
   } else if (geometry.type === 'MultiPolygon') {
     newCoordinates = geometry.coordinates.map(polygon => {
-      const centroid = ringCentroidMercator(polygon[0], false);
+      const centroid = ringCentroidMercator(polygon[0]);
       return polygon.map(ring => scaleRing(ring, centroid, scaleFactor));
     });
   } else {
@@ -283,24 +204,40 @@ function scaleFeature(feature, ratio) {
 // ============================================================================
 
 /**
- * Get color for a budget ratio using a diverging green → yellow → red scale
+ * Get color for a budget ratio.
+ * Default: Green → Yellow → Red diverging scale
+ * Colorblind mode: Blue → White → Orange/Brown (ColorBrewer safe)
  */
 function getRatioColor(ratio) {
   if (ratio === null || ratio === undefined) return '#888888';
   
-  // Clamp for color purposes
   const r = Math.max(0.05, Math.min(ratio, 8));
 
+  if (colorblindMode) {
+    if (r <= 1) {
+      const t = r;
+      const red = Math.round(33 + (245 - 33) * t);
+      const green = Math.round(102 + (245 - 102) * t);
+      const blue = Math.round(172 + (245 - 172) * t);
+      return `rgb(${red}, ${green}, ${blue})`;
+    } else {
+      const t = Math.min((r - 1) / 3, 1);
+      const red = Math.round(245 + (179 - 245) * t);
+      const green = Math.round(245 + (88 - 245) * t);
+      const blue = Math.round(245 + (6 - 245) * t);
+      return `rgb(${red}, ${green}, ${blue})`;
+    }
+  }
+
+  // Default: Green → Yellow → Red
   if (r <= 1) {
-    // Green to Yellow: ratio 0→1
-    const t = r; // 0 to 1
+    const t = r;
     const red = Math.round(34 + (230 - 34) * t);
     const green = Math.round(170 + (195 - 170) * t);
     const blue = Math.round(100 + (50 - 100) * t);
     return `rgb(${red}, ${green}, ${blue})`;
   } else {
-    // Yellow to Red: ratio 1→4+
-    const t = Math.min((r - 1) / 3, 1); // 0 to 1 over range 1-4
+    const t = Math.min((r - 1) / 3, 1);
     const red = Math.round(230 + (200 - 230) * t);
     const green = Math.round(195 - 195 * t);
     const blue = Math.round(50 - 50 * t);
@@ -318,6 +255,7 @@ let countriesLayer = null;
 let scaledLayer = null;
 let currentMetric = 'co2';
 let isScaled = true;
+let colorblindMode = false;
 let selectedCountryId = null;
 let highlightLayer = null;
 
@@ -618,6 +556,15 @@ function setupControls() {
     isScaled = e.target.checked;
     document.getElementById('toggle-label').textContent = isScaled ? 'Budget View' : 'Actual Size';
     renderCountries();
+  });
+
+  // Colorblind toggle
+  document.getElementById('colorblind-toggle').addEventListener('change', (e) => {
+    colorblindMode = e.target.checked;
+    document.body.classList.toggle('colorblind', colorblindMode);
+    renderCountries();
+    createLegend();
+    if (selectedCountryId) showInfoPanel(selectedCountryId);
   });
 
   // Click on map background to deselect
