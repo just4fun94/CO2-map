@@ -253,7 +253,7 @@ let map;
 let geojsonData = null;
 let countriesLayer = null;
 let scaledLayer = null;
-let currentMetric = 'co2';
+let currentMetric = 'paris';
 let isScaled = false;
 let colorblindMode = false;
 let selectedCountryId = null;
@@ -470,10 +470,25 @@ function showInfoPanel(isoCode) {
     });
   }
 
-  const worldPC = currentMetric === 'paris'
-    ? PARIS_BUDGET.perCapita.toFixed(1)
+  // Paris 2.0°C
+  if (stats.co2) {
+    const parisPC = stats.co2 / stats.population;
+    const paris2Allowance = PARIS_2_BUDGET.perCapita;
+    metricRows.push({
+      label: 'Paris 2.0°C',
+      value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} t/cap`,
+      total: `${stats.co2.toFixed(0)} Mt`,
+      active: currentMetric === 'paris2'
+    });
+  }
+
+  const isParis = currentMetric === 'paris' || currentMetric === 'paris2';
+  const activeParisBudget = currentMetric === 'paris2' ? PARIS_2_BUDGET : PARIS_BUDGET;
+  const parisLabel = currentMetric === 'paris2' ? '2.0°C' : '1.5°C';
+  const worldPC = isParis
+    ? activeParisBudget.perCapita.toFixed(1)
     : (WORLD_TOTALS.co2 / WORLD_TOTALS.population).toFixed(1);
-  const worldPCLabel = currentMetric === 'paris' ? 'Paris target t/cap' : 'World avg t/cap';
+  const worldPCLabel = isParis ? `Paris ${parisLabel} t/cap` : 'World avg t/cap';
 
   panel.innerHTML = `
     <div class="panel-content">
@@ -488,8 +503,8 @@ function showInfoPanel(isoCode) {
       
       <div class="stat-hero ${ratioClass}">
         <div class="ratio-value">${ratioPercent}%</div>
-        <div class="ratio-label">${currentMetric === 'paris' ? 'of Paris 1.5°C budget' : 'of fair CO₂ budget used'}</div>
-        <div class="ratio-detail">${diffPercent}% ${overUnder} ${currentMetric === 'paris' ? 'Paris target' : 'fair share'}</div>
+        <div class="ratio-label">${isParis ? `of Paris ${parisLabel} budget` : 'of fair CO₂ budget used'}</div>
+        <div class="ratio-detail">${diffPercent}% ${overUnder} ${isParis ? 'Paris target' : 'fair share'}</div>
       </div>
 
       <div class="stat-grid">
@@ -549,11 +564,11 @@ function showInfoPanel(isoCode) {
       </div>
 
       <div class="explanation">
-        ${currentMetric === 'paris' ? `
-        <p>To stay within the 1.5°C Paris budget, each person can emit ~${PARIS_BUDGET.perCapita.toFixed(1)} t/year.
+        ${isParis ? `
+        <p>To stay within the ${parisLabel} Paris budget, each person can emit ~${activeParisBudget.perCapita.toFixed(1)} t/year.
         <strong>${stats.name}</strong> emits at <strong>${ratio ? ratio.toFixed(1) + '×' : 'N/A'}</strong> that rate.
         At this pace, it would exhaust its fair share of the remaining budget in 
-        <strong>${ratio ? Math.max(1, Math.round(PARIS_BUDGET.yearsLeft / ratio)) : '?'} years</strong> instead of 27.</p>
+        <strong>${ratio ? Math.max(1, Math.round(activeParisBudget.yearsLeft / ratio)) : '?'} years</strong> instead of ${activeParisBudget.yearsLeft}.</p>
         ` : `
         <p>If every person on Earth had an equal CO₂ budget, 
         <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 

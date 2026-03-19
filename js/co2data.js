@@ -247,8 +247,20 @@ const PARIS_BUDGET = {
   perCapita: (350000 / 27) / 8091.735  // t/person/year (~1.6 t)
 };
 
+// Paris Agreement 2.0°C carbon budget (IPCC AR6, 67% probability)
+// ~1,350 Gt remaining from 2020, minus ~150 Gt emitted 2020–2023 ≈ 1,100 Gt from 2024
+const PARIS_2_BUDGET = {
+  remaining: 1100,       // Gt CO₂ remaining from 2024
+  targetYear: 2050,
+  dataYear: 2023,
+  yearsLeft: 27,
+  annualGlobal: 1100000 / 27, // Mt/year (~40,741 Mt)
+  perCapita: (1100000 / 27) / 8091.735  // t/person/year (~5.0 t)
+};
+
 function getWorldPerCapita(metric = "co2") {
   if (metric === "paris") return PARIS_BUDGET.perCapita;
+  if (metric === "paris2") return PARIS_2_BUDGET.perCapita;
   if (metric === "hist") return WORLD_TOTALS.hist / WORLD_TOTALS.pop;
   const key = metric === "cons" ? "cons" : "co2";
   return WORLD_TOTALS[key] / WORLD_TOTALS.pop;
@@ -258,7 +270,7 @@ function getBudgetRatio(isoCode, metric = "co2") {
   const d = CO2_DATA[isoCode];
   if (!d || !d.pop) return null;
   let val;
-  if (metric === "paris") {
+  if (metric === "paris" || metric === "paris2") {
     val = d.co2; // compare current territorial emissions to Paris-aligned budget
   } else if (metric === "hist") {
     val = d.hist;
@@ -278,7 +290,7 @@ function getCountryStats(isoCode, metric = 'co2') {
   if (!d) return null;
   const ratio = getBudgetRatio(isoCode, metric);
   let metricPerCapita = null;
-  if (metric === 'paris') {
+  if (metric === 'paris' || metric === 'paris2') {
     if (d.co2 != null && d.pop) metricPerCapita = d.co2 / d.pop;
   } else if (metric === 'hist' && d.hist != null && d.pop) {
     metricPerCapita = (d.hist * 1000) / d.pop; // Gt→Mt for per-capita
