@@ -534,6 +534,31 @@ input:checked + .slider:before {
 }
 
 /* ============================================================================
+   Source Attribution
+   ============================================================================ */
+
+#attribution {
+  position: fixed;
+  bottom: 8px;
+  right: 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  z-index: 999;
+  background: rgba(255,255,255,0.8);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+#attribution a {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+#attribution a:hover {
+  color: var(--text);
+}
+
+/* ============================================================================
    Loading Overlay
    ============================================================================ */
 
