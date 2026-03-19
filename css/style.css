@@ -290,6 +290,37 @@ input:checked + .slider:before {
   color: var(--text);
 }
 
+.resize-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.resize-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.resize-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.resize-btn.active:hover {
+  background: transparent;
+  color: var(--accent);
+}
+
 .panel-content h2 {
   font-size: 22px;
   font-weight: 700;

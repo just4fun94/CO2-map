@@ -254,9 +254,10 @@ let geojsonData = null;
 let countriesLayer = null;
 let scaledLayer = null;
 let currentMetric = 'co2';
-let isScaled = true;
+let isScaled = false;
 let colorblindMode = false;
 let selectedCountryId = null;
+let selectedScaled = false;
 let highlightLayer = null;
 
 // ============================================================================
@@ -341,7 +342,7 @@ function renderCountries() {
 
   const features = geojsonData.features.map(feature => {
     const ratio = getBudgetRatio(feature.id, currentMetric);
-    if (isScaled && ratio !== null) {
+    if (ratio !== null && (isScaled || (selectedScaled && feature.id === selectedCountryId))) {
       return scaleFeature(feature, ratio);
     }
     return feature;
@@ -384,14 +385,22 @@ function renderCountries() {
 
 function selectCountry(isoCode) {
   selectedCountryId = isoCode;
+  selectedScaled = true;
   renderCountries();
   showInfoPanel(isoCode);
 }
 
 function deselectCountry() {
   selectedCountryId = null;
+  selectedScaled = false;
   renderCountries();
   hideInfoPanel();
+}
+
+function toggleSelectedScale() {
+  selectedScaled = !selectedScaled;
+  renderCountries();
+  if (selectedCountryId) showInfoPanel(selectedCountryId);
 }
 
 // ============================================================================
@@ -455,6 +464,12 @@ function showInfoPanel(isoCode) {
     <div class="panel-content">
       <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
       <h2>${stats.name}</h2>
+
+      ${!isScaled ? `
+      <button class="resize-btn ${selectedScaled ? 'active' : ''}" onclick="toggleSelectedScale()">
+        ${selectedScaled ? '↩ Reset to Actual Size' : '⬡ Resize to Budget'}
+      </button>
+      ` : ''}
       
       <div class="stat-hero ${ratioClass}">
         <div class="ratio-value">${ratioPercent}%</div>
@@ -554,8 +569,10 @@ function setupControls() {
   // Scale toggle
   document.getElementById('scale-toggle').addEventListener('change', (e) => {
     isScaled = e.target.checked;
+    selectedScaled = false;
     document.getElementById('toggle-label').textContent = isScaled ? 'Budget View' : 'Actual Size';
     renderCountries();
+    if (selectedCountryId) showInfoPanel(selectedCountryId);
   });
 
   // Colorblind toggle
