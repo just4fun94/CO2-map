@@ -434,7 +434,17 @@ function showInfoPanel(isoCode) {
   const stats = getCountryStats(isoCode, currentMetric);
   
   if (!stats) {
-    panel.innerHTML = '<div class="panel-content"><p>No data available for this country.</p></div>';
+    const territoryName = TERRITORY_NAMES[isoCode] || `Unknown (${isoCode})`;
+    const parent = TERRITORY_PARENTS[isoCode];
+    const parentNote = parent
+      ? `<p>Emissions data for this territory is included under <strong>${parent}</strong>.</p>`
+      : '<p>No emissions data available.</p>';
+    panel.innerHTML = `
+      <div class="panel-content">
+        <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
+        <h2>${territoryName}</h2>
+        ${parentNote}
+      </div>`;
     panel.classList.add('visible');
     return;
   }
