@@ -323,6 +323,13 @@ async function loadGeoJSON() {
   const topology = await response.json();
   geojsonData = topojson.feature(topology, topology.objects.countries);
 
+  // Assign id from properties.name for features without a numeric id (e.g. Somaliland, Kosovo)
+  geojsonData.features.forEach(f => {
+    if (f.id == null && f.properties && f.properties.name) {
+      f.id = f.properties.name;
+    }
+  });
+
   // Fix Russia, Fiji etc. — split polygons that cross the antimeridian
   geojsonData = fixAntimeridian(geojsonData);
   

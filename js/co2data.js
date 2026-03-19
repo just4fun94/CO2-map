@@ -27,7 +27,23 @@ const TERRITORY_PARENTS = {
   "574": "Australia",         // Norfolk Island
   "162": "Australia",         // Christmas Island
   "010": null,                // Antarctica (no parent)
-  "336": null                 // Vatican (negligible)
+  "336": null,                // Vatican (negligible)
+  "580": "United States",     // Northern Mariana Islands
+  "850": "United States",     // U.S. Virgin Islands
+  "316": "United States",     // Guam
+  "630": "United States",     // Puerto Rico
+  "239": "United Kingdom",    // South Georgia and the South Sandwich Islands
+  "086": "United Kingdom",    // British Indian Ocean Territory
+  "612": "United Kingdom",    // Pitcairn Islands
+  "238": "United Kingdom",    // Falkland Islands
+  "136": "United Kingdom",    // Cayman Islands
+  "260": "France",            // French Southern and Antarctic Lands
+  "334": "Australia",         // Heard Island and McDonald Islands
+  "Somaliland": "Somalia",    // Somaliland
+  "Kosovo": null,             // Kosovo (disputed)
+  "N. Cyprus": "Cyprus",      // Northern Cyprus
+  "Indian Ocean Ter.": "Australia", // Indian Ocean Territories
+  "Siachen Glacier": null     // Siachen Glacier (disputed)
 };
 
 // Names for territories (not in CO2_DATA)
@@ -48,7 +64,23 @@ const TERRITORY_NAMES = {
   "574": "Norfolk Island",
   "162": "Christmas Island",
   "010": "Antarctica",
-  "336": "Vatican City"
+  "336": "Vatican City",
+  "580": "Northern Mariana Islands",
+  "850": "U.S. Virgin Islands",
+  "316": "Guam",
+  "630": "Puerto Rico",
+  "239": "South Georgia and the South Sandwich Islands",
+  "086": "British Indian Ocean Territory",
+  "612": "Pitcairn Islands",
+  "238": "Falkland Islands",
+  "136": "Cayman Islands",
+  "260": "French Southern and Antarctic Lands",
+  "334": "Heard Island and McDonald Islands",
+  "Somaliland": "Somaliland",
+  "Kosovo": "Kosovo",
+  "N. Cyprus": "Northern Cyprus",
+  "Indian Ocean Ter.": "Indian Ocean Territories",
+  "Siachen Glacier": "Siachen Glacier"
 };
 
 const CO2_DATA = {
