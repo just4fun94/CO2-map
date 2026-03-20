@@ -657,10 +657,12 @@ function showInfoPanel(isoCode) {
   `;
 
   panel.classList.add('visible');
+  updateLegendVisibility();
 }
 
 function hideInfoPanel() {
   document.getElementById('info-panel').classList.remove('visible');
+  updateLegendVisibility();
 }
 
 // ============================================================================
@@ -805,6 +807,13 @@ function toggleRanking() {
   document.getElementById('ranking-panel').classList.toggle('visible', rankingOpen);
   document.getElementById('ranking-toggle').classList.toggle('active', rankingOpen);
   if (rankingOpen) buildRanking();
+  updateLegendVisibility();
+}
+
+function updateLegendVisibility() {
+  const legend = document.getElementById('legend');
+  const infoOpen = document.getElementById('info-panel').classList.contains('visible');
+  legend.style.display = (infoOpen || rankingOpen) ? 'none' : '';
 }
 
 function panToCountry(isoCode) {
@@ -822,4 +831,12 @@ function panToCountry(isoCode) {
 document.addEventListener('DOMContentLoaded', () => {
   createLegend();
   initApp();
+
+  // Keep --header-height in sync when header wraps
+  const header = document.querySelector('.header');
+  const ro = new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--header-height', header.offsetHeight + 'px');
+    if (map) map.invalidateSize();
+  });
+  ro.observe(header);
 });

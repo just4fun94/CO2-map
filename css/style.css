@@ -43,15 +43,17 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--header-height);
+  height: auto;
+  min-height: var(--header-height);
   background: var(--panel-bg);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  flex-wrap: wrap;
+  padding: 8px 20px;
   z-index: 1000;
   box-shadow: var(--shadow);
-  gap: 16px;
+  gap: 8px;
 }
 
 .header-title {
@@ -515,10 +517,6 @@ input:checked + .slider:before {
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#ranking-panel.visible ~ #legend {
-  left: 332px;
-}
-
 .legend-title {
   font-weight: 600;
   margin-bottom: 6px;
@@ -643,16 +641,12 @@ input:checked + .slider:before {
 
 @media (max-width: 640px) {
   :root {
-    --header-height: 88px;
     --panel-width: 100vw;
   }
 
   .header {
-    flex-wrap: wrap;
-    height: var(--header-height);
     padding: 6px 12px;
     gap: 6px;
-    align-content: center;
   }
 
   .header-title {
@@ -780,9 +774,6 @@ input:checked + .slider:before {
     padding: 6px 10px;
   }
 
-  #ranking-panel.visible ~ #legend {
-    left: 8px;
-  }
 }
 
 /* ============================================================================
