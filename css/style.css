@@ -512,6 +512,11 @@ input:checked + .slider:before {
   box-shadow: var(--shadow);
   z-index: 999;
   font-size: 11px;
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#ranking-panel.visible ~ #legend {
+  left: 332px;
 }
 
 .legend-title {
@@ -625,23 +630,158 @@ input:checked + .slider:before {
    Responsive
    ============================================================================ */
 
+@media (max-width: 900px) {
+  .header-subtitle {
+    display: none;
+  }
+
+  .metric-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 640px) {
   :root {
+    --header-height: 88px;
     --panel-width: 100vw;
-    --header-height: 48px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    height: var(--header-height);
+    padding: 6px 12px;
+    gap: 6px;
+    align-content: center;
   }
 
   .header-title {
     font-size: 15px;
   }
 
+  .header-controls {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: 0;
+  }
+
+  .metric-buttons {
+    flex: 1;
+    min-width: 0;
+  }
+
   .metric-btn {
-    padding: 5px 10px;
-    font-size: 11px;
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+
+  .metric-info {
+    display: none;
   }
 
   .toggle-switch label {
     font-size: 11px;
+  }
+
+  .switch {
+    width: 36px;
+    height: 20px;
+  }
+
+  .slider:before {
+    height: 14px;
+    width: 14px;
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(16px);
+  }
+
+  /* Info panel as bottom sheet */
+  #info-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    height: 55vh;
+    max-height: 55vh;
+    transform: translateY(100%);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+  }
+
+  #info-panel.visible {
+    transform: translateY(0);
+  }
+
+  #info-panel::before,
+  #ranking-panel::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: #ccc;
+    border-radius: 2px;
+    margin: 8px auto 4px;
+  }
+
+  .panel-content {
+    padding: 16px 16px;
+  }
+
+  .panel-content h2 {
+    font-size: 18px;
+  }
+
+  .ratio-value {
+    font-size: 36px;
+  }
+
+  .stat-grid {
+    gap: 8px;
+  }
+
+  .stat-number {
+    font-size: 16px;
+  }
+
+  /* Ranking panel as bottom sheet */
+  #ranking-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 60vh;
+    max-height: 60vh;
+    transform: translateY(100%);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+  }
+
+  #ranking-panel.visible {
+    transform: translateY(0);
+  }
+
+  #ranking-list {
+    padding-bottom: 20px;
+  }
+
+  .ranking-toggle-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  /* Legend and attribution */
+  #legend {
+    bottom: 8px;
+    left: 8px;
+    padding: 6px 10px;
+  }
+
+  #ranking-panel.visible ~ #legend {
+    left: 8px;
   }
 }
 
@@ -742,6 +882,7 @@ body.colorblind .metrics-table tr.active-metric {
 #ranking-list {
   overflow-y: auto;
   flex: 1;
+  padding-bottom: 80px;
 }
 
 .ranking-item {
@@ -794,15 +935,4 @@ body.colorblind .metrics-table tr.active-metric {
   color: var(--text-muted);
   font-size: 12px;
   flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  #ranking-panel {
-    width: 100vw;
-  }
-
-  .ranking-toggle-btn {
-    padding: 5px 10px;
-    font-size: 11px;
-  }
 }

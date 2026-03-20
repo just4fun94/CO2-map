@@ -155,8 +155,9 @@ function scaleRing(ring, centroid, scaleFactor) {
     const [mx, my] = toMercator(coord[0], coord[1]);
     const newX = centroid[0] + scaleFactor * (mx - centroid[0]);
     const newY = centroid[1] + scaleFactor * (my - centroid[1]);
-    const [newLng, lat] = fromMercator(newX, newY);
-    return [newLng, lat];
+    const [newLng, newLat] = fromMercator(newX, newY);
+    // Clamp latitude so scaled polygons don't exceed Mercator bounds
+    return [newLng, Math.max(-85, Math.min(85, newLat))];
   });
 }
 
@@ -411,6 +412,27 @@ function renderCountries() {
       layer.on('click', () => selectCountry(feature.id));
     }
   }).addTo(map);
+
+  // Ghost outline: show original borders when a country is scaled
+  if (selectedCountryId && selectedScaled) {
+    const ratio = getBudgetRatio(selectedCountryId, currentMetric);
+    if (ratio !== null && ratio !== 1) {
+      const originalFeature = geojsonData.features.find(f => f.id === selectedCountryId);
+      if (originalFeature) {
+        highlightLayer = L.geoJSON(originalFeature, {
+          style: {
+            fillColor: getRatioColor(ratio),
+            fillOpacity: 0.15,
+            color: '#000000',
+            weight: 2,
+            opacity: 0.7,
+            dashArray: '6,4'
+          },
+          interactive: false
+        }).addTo(map);
+      }
+    }
+  }
 }
 
 function selectCountry(isoCode) {
@@ -766,8 +788,10 @@ function buildRanking() {
   // Click handlers
   list.querySelectorAll('.ranking-item').forEach(item => {
     item.addEventListener('click', () => {
-      selectCountry(item.dataset.id);
-      buildRanking(); // refresh selection highlight
+      const id = item.dataset.id;
+      selectCountry(id);
+      panToCountry(id);
+      buildRanking();
     });
   });
 
@@ -781,6 +805,14 @@ function toggleRanking() {
   document.getElementById('ranking-panel').classList.toggle('visible', rankingOpen);
   document.getElementById('ranking-toggle').classList.toggle('active', rankingOpen);
   if (rankingOpen) buildRanking();
+}
+
+function panToCountry(isoCode) {
+  if (!geojsonData) return;
+  const feature = geojsonData.features.find(f => f.id === isoCode);
+  if (!feature) return;
+  const layer = L.geoJSON(feature);
+  map.flyToBounds(layer.getBounds(), { duration: 0.6, maxZoom: 5, padding: [40, 40] });
 }
 
 // ============================================================================
