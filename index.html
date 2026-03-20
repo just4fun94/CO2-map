@@ -66,8 +66,19 @@
         </label>
         <label for="colorblind-toggle">Colorblind</label>
       </div>
+
+      <button class="ranking-toggle-btn" id="ranking-toggle" title="Show country ranking">🏆 Ranking</button>
     </div>
   </header>
+
+  <!-- Ranking Panel (left sidebar) -->
+  <div id="ranking-panel">
+    <div class="ranking-header">
+      <h3>Country Ranking</h3>
+      <button class="panel-close" id="ranking-close" title="Close">&times;</button>
+    </div>
+    <div id="ranking-list"></div>
+  </div>
 
   <!-- Map Container -->
   <div id="map"></div>

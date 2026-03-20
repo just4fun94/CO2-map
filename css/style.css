@@ -676,3 +676,133 @@ body.colorblind .budget-bar-fill.under-budget {
 body.colorblind .metrics-table tr.active-metric {
   background: #e0ecf4;
 }
+
+/* ============================================================================
+   Ranking Button
+   ============================================================================ */
+
+.ranking-toggle-btn {
+  padding: 6px 14px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ranking-toggle-btn:hover,
+.ranking-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================================
+   Ranking Panel
+   ============================================================================ */
+
+#ranking-panel {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  width: 320px;
+  height: calc(100vh - var(--header-height));
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-lg);
+  z-index: 999;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+#ranking-panel.visible {
+  transform: translateX(0);
+}
+
+.ranking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ranking-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#ranking-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  font-size: 13px;
+}
+
+.ranking-item:hover {
+  background: var(--bg);
+}
+
+.ranking-item.selected {
+  background: #eef2ff;
+  font-weight: 600;
+}
+
+.ranking-rank {
+  width: 28px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ranking-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.ranking-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-value {
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  #ranking-panel {
+    width: 100vw;
+  }
+
+  .ranking-toggle-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+}

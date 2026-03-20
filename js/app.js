@@ -259,6 +259,7 @@ let colorblindMode = false;
 let selectedCountryId = null;
 let selectedScaled = false;
 let highlightLayer = null;
+let rankingOpen = false;
 
 // ============================================================================
 // Map Initialization
@@ -417,6 +418,7 @@ function selectCountry(isoCode) {
   selectedScaled = true;
   renderCountries();
   showInfoPanel(isoCode);
+  if (rankingOpen) buildRanking();
 }
 
 function deselectCountry() {
@@ -424,6 +426,7 @@ function deselectCountry() {
   selectedScaled = false;
   renderCountries();
   hideInfoPanel();
+  if (rankingOpen) buildRanking();
 }
 
 function toggleSelectedScale() {
@@ -651,6 +654,7 @@ function setupControls() {
       currentMetric = btn.dataset.metric;
       renderCountries();
       if (selectedCountryId) showInfoPanel(selectedCountryId);
+      if (rankingOpen) buildRanking();
     });
   });
 
@@ -670,7 +674,12 @@ function setupControls() {
     renderCountries();
     createLegend();
     if (selectedCountryId) showInfoPanel(selectedCountryId);
+    if (rankingOpen) buildRanking();
   });
+
+  // Ranking toggle
+  document.getElementById('ranking-toggle').addEventListener('click', toggleRanking);
+  document.getElementById('ranking-close').addEventListener('click', toggleRanking);
 
   // Click on map background to deselect
   map.on('click', (e) => {
@@ -704,6 +713,74 @@ function createLegend() {
   
   html += '</div><div class="legend-labels"><span>Under budget</span><span>1×</span><span>Over budget</span></div>';
   legend.innerHTML = html;
+}
+
+// ============================================================================
+// Ranking Panel
+// ============================================================================
+
+function buildRanking() {
+  const list = document.getElementById('ranking-list');
+  const entries = [];
+
+  for (const [id, d] of Object.entries(CO2_DATA)) {
+    if (!d.pop) continue;
+    const ratio = getBudgetRatio(id, currentMetric);
+    if (ratio == null) continue;
+
+    let perCapita, unit;
+    if (currentMetric === 'hist') {
+      perCapita = d.hist != null ? (d.hist * 1000) / d.pop : null;
+      unit = 't cumul/cap';
+    } else if (currentMetric === 'cons' || currentMetric === 'paris' || currentMetric === 'paris2') {
+      const val = d.cons != null ? d.cons : d.co2;
+      perCapita = val != null ? val / d.pop : null;
+      unit = 't/cap';
+    } else {
+      perCapita = d.co2 != null ? d.co2 / d.pop : null;
+      unit = 't/cap';
+    }
+
+    entries.push({ id, name: d.name, ratio, perCapita, unit });
+  }
+
+  // Sort worst (highest ratio) first
+  entries.sort((a, b) => b.ratio - a.ratio);
+
+  let html = '';
+  entries.forEach((e, i) => {
+    const rank = i + 1;
+    const color = getRatioColor(e.ratio);
+    const pcText = e.perCapita != null ? e.perCapita.toFixed(1) : 'N/A';
+    const isSelected = e.id === selectedCountryId;
+    html += `<div class="ranking-item${isSelected ? ' selected' : ''}" data-id="${e.id}">
+      <span class="ranking-rank">${rank}</span>
+      <span class="ranking-color" style="background:${color}"></span>
+      <span class="ranking-name">${e.name}</span>
+      <span class="ranking-value">${pcText} ${e.unit}</span>
+    </div>`;
+  });
+
+  list.innerHTML = html;
+
+  // Click handlers
+  list.querySelectorAll('.ranking-item').forEach(item => {
+    item.addEventListener('click', () => {
+      selectCountry(item.dataset.id);
+      buildRanking(); // refresh selection highlight
+    });
+  });
+
+  // Scroll selected into view
+  const selected = list.querySelector('.ranking-item.selected');
+  if (selected) selected.scrollIntoView({ block: 'nearest' });
+}
+
+function toggleRanking() {
+  rankingOpen = !rankingOpen;
+  document.getElementById('ranking-panel').classList.toggle('visible', rankingOpen);
+  document.getElementById('ranking-toggle').classList.toggle('active', rankingOpen);
+  if (rankingOpen) buildRanking();
 }
 
 // ============================================================================
