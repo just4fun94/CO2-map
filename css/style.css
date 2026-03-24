@@ -68,6 +68,31 @@ html, body {
   color: var(--accent);
 }
 
+/* Header Collapse Button (mobile only) */
+.header-collapse-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #eee;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: auto;
+  color: var(--text-muted);
+  transition: transform 0.3s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.header-collapse-btn:hover {
+  background: #ddd;
+}
+
+.header.collapsed .header-collapse-btn {
+  transform: rotate(180deg);
+}
+
 .header-subtitle {
   font-size: 12px;
   color: var(--text-muted);
@@ -633,9 +658,34 @@ input:checked + .slider:before {
     display: none;
   }
 
+  .header-controls {
+    flex-wrap: wrap;
+  }
+
+  .metric-buttons {
+    order: 2;
+    flex: 1 1 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .metric-buttons::-webkit-scrollbar {
+    display: none;
+  }
+
   .metric-btn {
     padding: 5px 10px;
     font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch {
+    order: 1;
+  }
+
+  .ranking-toggle-btn {
+    order: 1;
   }
 }
 
@@ -649,6 +699,10 @@ input:checked + .slider:before {
     gap: 6px;
   }
 
+  .header-collapse-btn {
+    display: flex;
+  }
+
   .header-title {
     font-size: 15px;
   }
@@ -658,16 +712,35 @@ input:checked + .slider:before {
     flex-wrap: wrap;
     gap: 6px;
     margin-left: 0;
+    overflow: hidden;
+    max-height: 200px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+  }
+
+  .header.collapsed .header-controls {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    gap: 0;
   }
 
   .metric-buttons {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .metric-buttons::-webkit-scrollbar {
+    display: none;
   }
 
   .metric-btn {
     padding: 4px 7px;
     font-size: 10px;
+    flex-shrink: 0;
   }
 
   .metric-info {

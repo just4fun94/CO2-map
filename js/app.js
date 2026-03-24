@@ -183,9 +183,26 @@ function scaleFeature(feature, ratio) {
       scaleRing(ring, centroid, scaleFactor)
     );
   } else if (geometry.type === 'MultiPolygon') {
+    // Use the centroid of the largest polygon for all parts so that
+    // small coastal islands scale together with the main landmass,
+    // avoiding gaps between them.
+    let largestArea = -1;
+    let sharedCentroid = null;
+    for (const polygon of geometry.coordinates) {
+      let area = 0;
+      const ring = polygon[0];
+      for (let i = 0, n = ring.length; i < n; i++) {
+        const j = (i + 1) % n;
+        area += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1];
+      }
+      area = Math.abs(area);
+      if (area > largestArea) {
+        largestArea = area;
+        sharedCentroid = ringCentroidMercator(ring);
+      }
+    }
     newCoordinates = geometry.coordinates.map(polygon => {
-      const centroid = ringCentroidMercator(polygon[0]);
-      return polygon.map(ring => scaleRing(ring, centroid, scaleFactor));
+      return polygon.map(ring => scaleRing(ring, sharedCentroid, scaleFactor));
     });
   } else {
     return feature;
@@ -260,6 +277,7 @@ let colorblindMode = false;
 let selectedCountryId = null;
 let selectedScaled = false;
 let highlightLayer = null;
+let selectionOutlineLayer = null;
 let rankingOpen = false;
 
 // ============================================================================
@@ -348,6 +366,7 @@ function renderCountries() {
   if (countriesLayer) map.removeLayer(countriesLayer);
   if (scaledLayer) map.removeLayer(scaledLayer);
   if (highlightLayer) map.removeLayer(highlightLayer);
+  if (selectionOutlineLayer) map.removeLayer(selectionOutlineLayer);
 
   const features = geojsonData.features.map(feature => {
     const ratio = getBudgetRatio(feature.id, currentMetric);
@@ -366,9 +385,9 @@ function renderCountries() {
       return {
         fillColor: getRatioColor(ratio),
         fillOpacity: isSelected ? 0.9 : 0.75,
-        color: isSelected ? '#ffffff' : '#333333',
-        weight: isSelected ? 2.5 : 0.5,
-        opacity: isSelected ? 1 : 0.6
+        color: '#333333',
+        weight: 0.5,
+        opacity: 0.6
       };
     },
     onEachFeature: (feature, layer) => {
@@ -431,6 +450,20 @@ function renderCountries() {
           interactive: false
         }).addTo(map);
       }
+    }
+
+    // White outline on the scaled geometry so all parts are visibly outlined
+    const scaledFeature = features.find(f => f.id === selectedCountryId);
+    if (scaledFeature) {
+      selectionOutlineLayer = L.geoJSON(scaledFeature, {
+        style: {
+          fill: false,
+          color: '#ffffff',
+          weight: 2.5,
+          opacity: 1
+        },
+        interactive: false
+      }).addTo(map);
     }
   }
 }
@@ -658,6 +691,11 @@ function showInfoPanel(isoCode) {
 
   panel.classList.add('visible');
   updateLegendVisibility();
+
+  // Auto-collapse header on mobile to maximize map space
+  if (window.innerWidth <= 640) {
+    document.querySelector('.header').classList.add('collapsed');
+  }
 }
 
 function hideInfoPanel() {
@@ -839,4 +877,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (map) map.invalidateSize();
   });
   ro.observe(header);
+
+  // Collapsible header on mobile
+  const collapseBtn = document.getElementById('header-collapse');
+  collapseBtn.addEventListener('click', () => {
+    header.classList.toggle('collapsed');
+  });
 });
