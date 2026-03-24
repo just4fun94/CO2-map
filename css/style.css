@@ -44,16 +44,15 @@ html, body {
   left: 0;
   right: 0;
   height: auto;
-  min-height: var(--header-height);
   background: var(--panel-bg);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  padding: 8px 20px;
+  padding: 8px 52px 8px 20px;
   z-index: 1000;
   box-shadow: var(--shadow);
-  gap: 8px;
+  gap: 4px 8px;
 }
 
 .header-title {
@@ -68,9 +67,24 @@ html, body {
   color: var(--accent);
 }
 
-/* Header Collapse Button (mobile only) */
-.header-collapse-btn {
+/* Header Settings Summary (visible when collapsed) */
+.header-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: none;
+  min-width: 0;
+}
+
+.header.collapsed .header-summary {
+  display: inline;
+}
+
+/* Header Collapse Button */
+.header-collapse-btn {
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
@@ -79,10 +93,13 @@ html, body {
   background: #eee;
   border-radius: 6px;
   cursor: pointer;
-  margin-left: auto;
   color: var(--text-muted);
   transition: transform 0.3s, background 0.2s;
   flex-shrink: 0;
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .header-collapse-btn:hover {
@@ -90,13 +107,17 @@ html, body {
 }
 
 .header.collapsed .header-collapse-btn {
-  transform: rotate(180deg);
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .header-subtitle {
   font-size: 12px;
   color: var(--text-muted);
   display: none;
+}
+
+.header.collapsed .header-subtitle {
+  display: none !important;
 }
 
 @media (min-width: 768px) {
@@ -110,6 +131,18 @@ html, body {
   align-items: center;
   gap: 12px;
   margin-left: auto;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  max-height: 200px;
+  opacity: 1;
+}
+
+.header.collapsed .header-controls {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  overflow: hidden;
+  flex-basis: 100%;
 }
 
 /* Metric Buttons */
@@ -283,11 +316,16 @@ input:checked + .slider:before {
   z-index: 999;
   overflow-y: auto;
   transform: translateX(100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s ease;
 }
 
 #info-panel.visible {
   transform: translateX(0);
+}
+
+#info-panel.minimized {
+  height: auto;
+  overflow-y: hidden;
 }
 
 .panel-content {
@@ -315,6 +353,45 @@ input:checked + .slider:before {
 .panel-close:hover {
   background: var(--bg);
   color: var(--text);
+}
+
+/* Info Panel Minimize */
+.panel-minimize {
+  position: absolute;
+  top: 12px;
+  right: 52px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s, transform 0.3s;
+}
+
+.panel-minimize:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+#info-panel.minimized .panel-minimize {
+  transform: rotate(180deg);
+}
+
+#info-panel .panel-body {
+  overflow: hidden;
+  max-height: 5000px;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
+}
+
+#info-panel.minimized .panel-body {
+  max-height: 0;
+  opacity: 0;
 }
 
 .resize-btn {
@@ -660,6 +737,8 @@ input:checked + .slider:before {
 
   .header-controls {
     flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
   }
 
   .metric-buttons {
@@ -699,30 +778,13 @@ input:checked + .slider:before {
     gap: 6px;
   }
 
-  .header-collapse-btn {
-    display: flex;
-  }
-
   .header-title {
     font-size: 15px;
   }
 
   .header-controls {
-    width: 100%;
     flex-wrap: wrap;
     gap: 6px;
-    margin-left: 0;
-    overflow: hidden;
-    max-height: 200px;
-    transition: max-height 0.3s ease, opacity 0.3s ease;
-    opacity: 1;
-  }
-
-  .header.collapsed .header-controls {
-    max-height: 0;
-    opacity: 0;
-    margin: 0;
-    gap: 0;
   }
 
   .metric-buttons {
@@ -781,6 +843,11 @@ input:checked + .slider:before {
 
   #info-panel.visible {
     transform: translateY(0);
+  }
+
+  #info-panel.minimized {
+    height: auto;
+    max-height: none;
   }
 
   #info-panel::before,

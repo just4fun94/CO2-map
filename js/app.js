@@ -507,10 +507,16 @@ function showInfoPanel(isoCode) {
     panel.innerHTML = `
       <div class="panel-content">
         <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
+        <button class="panel-minimize" onclick="toggleInfoMinimize()" title="Minimize">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
         <h2>${territoryName}</h2>
-        ${parentNote}
+        <div class="panel-body">
+          ${parentNote}
+        </div>
       </div>`;
     panel.classList.add('visible');
+    panel.classList.remove('minimized');
     return;
   }
 
@@ -592,8 +598,12 @@ function showInfoPanel(isoCode) {
   panel.innerHTML = `
     <div class="panel-content">
       <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
+      <button class="panel-minimize" onclick="toggleInfoMinimize()" title="Minimize">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <h2>${stats.name}</h2>
 
+      <div class="panel-body">
       ${!isScaled ? `
       <button class="resize-btn ${selectedScaled ? 'active' : ''}" onclick="toggleSelectedScale()">
         ${selectedScaled ? '↩ Reset to Actual Size' : '⬡ Resize to Budget'}
@@ -686,21 +696,27 @@ function showInfoPanel(isoCode) {
         to reflect its emissions relative to a fair per-capita share.</p>
         `}
       </div>
+      </div>
     </div>
   `;
 
   panel.classList.add('visible');
+  panel.classList.remove('minimized');
   updateLegendVisibility();
+  updateHeaderSummary();
 
-  // Auto-collapse header on mobile to maximize map space
-  if (window.innerWidth <= 640) {
-    document.querySelector('.header').classList.add('collapsed');
-  }
+  // Auto-collapse header to maximize map space
+  document.querySelector('.header').classList.add('collapsed');
 }
 
 function hideInfoPanel() {
   document.getElementById('info-panel').classList.remove('visible');
+  document.getElementById('info-panel').classList.remove('minimized');
   updateLegendVisibility();
+}
+
+function toggleInfoMinimize() {
+  document.getElementById('info-panel').classList.toggle('minimized');
 }
 
 // ============================================================================
@@ -717,6 +733,7 @@ function setupControls() {
       renderCountries();
       if (selectedCountryId) showInfoPanel(selectedCountryId);
       if (rankingOpen) buildRanking();
+      updateHeaderSummary();
     });
   });
 
@@ -727,6 +744,7 @@ function setupControls() {
     document.getElementById('toggle-label').textContent = isScaled ? 'Budget View' : 'Actual Size';
     renderCountries();
     if (selectedCountryId) showInfoPanel(selectedCountryId);
+    updateHeaderSummary();
   });
 
   // Colorblind toggle
@@ -737,6 +755,7 @@ function setupControls() {
     createLegend();
     if (selectedCountryId) showInfoPanel(selectedCountryId);
     if (rankingOpen) buildRanking();
+    updateHeaderSummary();
   });
 
   // Ranking toggle
@@ -878,9 +897,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   ro.observe(header);
 
-  // Collapsible header on mobile
+  // Collapsible header
   const collapseBtn = document.getElementById('header-collapse');
   collapseBtn.addEventListener('click', () => {
     header.classList.toggle('collapsed');
   });
+
+  // Settings summary
+  updateHeaderSummary();
 });
+
+function updateHeaderSummary() {
+  const metricNames = { paris: '1.5°C', paris2: '2.0°C', co2: 'Territorial', cons: 'Consumption', hist: 'Historical' };
+  const metric = metricNames[currentMetric] || currentMetric;
+  const scaled = document.getElementById('scale-toggle').checked ? 'Scaled' : 'Actual';
+  const cb = document.getElementById('colorblind-toggle').checked ? ' · CB' : '';
+  document.getElementById('header-summary').textContent = `${metric} · ${scaled}${cb}`;
+}
