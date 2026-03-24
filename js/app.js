@@ -705,8 +705,10 @@ function showInfoPanel(isoCode) {
   updateLegendVisibility();
   updateHeaderSummary();
 
-  // Auto-collapse header to maximize map space
-  document.querySelector('.header').classList.add('collapsed');
+  // Auto-collapse header on mobile to maximize map space
+  if (window.innerWidth <= 640) {
+    document.querySelector('.header').classList.add('collapsed');
+  }
 }
 
 function hideInfoPanel() {

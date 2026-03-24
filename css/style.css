@@ -382,6 +382,16 @@ input:checked + .slider:before {
   transform: rotate(180deg);
 }
 
+/* On mobile bottom-sheet, collapse direction is reversed */
+@media (max-width: 640px) {
+  .panel-minimize {
+    transform: rotate(180deg);
+  }
+  #info-panel.minimized .panel-minimize {
+    transform: rotate(0deg);
+  }
+}
+
 #info-panel .panel-body {
   overflow: hidden;
   max-height: 5000px;
