@@ -4,7 +4,7 @@
 
 An interactive world map that resizes countries based on their CO₂ emissions relative to what would be a fair, equal share. Built with Leaflet and real data from Our World in Data.
 
-![Screenshot placeholder](https://img.shields.io/badge/status-live-brightgreen)
+![Screenshot placeholder](https://just4fun94.github.io/CO2-map/)
 
 ## Features
 
