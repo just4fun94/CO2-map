@@ -298,7 +298,7 @@ async function initApp() {
   // Add zoom control to bottom-right
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  // CartoDB Positron (light minimal tiles)
+  // CartoDB Positron (light minimal tiles — no labels)
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
@@ -325,7 +325,7 @@ async function initApp() {
   } catch (error) {
     console.error('Failed to initialize:', error);
     document.getElementById('loading').innerHTML =
-      '<p style="color:#e94560">Failed to load map data. Please refresh the page.</p>';
+      `<p style="color:#e94560">${t('loadError')}</p>`;
   }
 
   showLoading(false);
@@ -399,28 +399,28 @@ function renderCountries() {
         let perCapita, unit;
         if (currentMetric === 'hist') {
           perCapita = country.hist != null ? (country.hist * 1000) / country.pop : null;
-          unit = 't cumul/cap';
+          unit = t('unitTCumulCap');
         } else if (currentMetric === 'cons' || currentMetric === 'paris' || currentMetric === 'paris2') {
           const val = country.cons != null ? country.cons : country.co2;
           perCapita = val != null ? val / country.pop : null;
-          unit = 't CO₂/cap';
+          unit = t('unitTCO2Cap');
         } else {
           perCapita = country.co2 != null ? country.co2 / country.pop : null;
-          unit = 't CO₂/cap';
+          unit = t('unitTCO2Cap');
         }
         const pcText = perCapita != null ? perCapita.toFixed(1) : 'N/A';
         layer.bindTooltip(
-          `<strong>${country.name}</strong><br>` +
+          `<strong>${tn(country.name)}</strong><br>` +
           `${pcText} ${unit}<br>` +
-          `Budget ratio: ${ratioText}`,
+          `${t('budgetRatioLabel')}: ${ratioText}`,
           { sticky: true, className: 'country-tooltip' }
         );
       } else if (TERRITORY_NAMES[feature.id]) {
-        const name = TERRITORY_NAMES[feature.id];
+        const name = tn(TERRITORY_NAMES[feature.id]);
         const parent = TERRITORY_PARENTS[feature.id];
         const note = parent
-          ? `Data included under ${parent}`
-          : 'No data available';
+          ? t('tooltipDataUnder')(tn(parent))
+          : t('tooltipNoData');
         layer.bindTooltip(
           `<strong>${name}</strong><br>${note}`,
           { sticky: true, className: 'country-tooltip' }
@@ -499,15 +499,15 @@ function showInfoPanel(isoCode) {
   const stats = getCountryStats(isoCode, currentMetric);
   
   if (!stats) {
-    const territoryName = TERRITORY_NAMES[isoCode] || `Unknown (${isoCode})`;
+    const territoryName = tn(TERRITORY_NAMES[isoCode]) || t('unknownTerritory')(isoCode);
     const parent = TERRITORY_PARENTS[isoCode];
     const parentNote = parent
-      ? `<p>Emissions data for this territory is included under <strong>${parent}</strong>.</p>`
-      : '<p>No emissions data available.</p>';
+      ? `<p>${t('dataIncludedUnder')(tn(parent))}</p>`
+      : `<p>${t('noDataAvailable')}</p>`;
     panel.innerHTML = `
       <div class="panel-content">
-        <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
-        <button class="panel-minimize" onclick="toggleInfoMinimize()" title="Minimize">
+        <button class="panel-close" onclick="deselectCountry()" title="${t('close')}">&times;</button>
+        <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${t('minimize')}">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <h2>${territoryName}</h2>
@@ -524,7 +524,7 @@ function showInfoPanel(isoCode) {
   const ratioPercent = ratio ? (ratio * 100).toFixed(0) : 'N/A';
   const ratioClass = ratio > 1 ? 'over-budget' : 'under-budget';
   const ratioSign = ratio > 1 ? '+' : '';
-  const overUnder = ratio > 1 ? 'over' : 'under';
+  const overUnder = ratio > 1 ? t('overTarget') : t('underTarget');
   const diffPercent = ratio ? Math.abs((ratio - 1) * 100).toFixed(0) : 'N/A';
 
   // Build metric rows
@@ -533,7 +533,7 @@ function showInfoPanel(isoCode) {
   // Territorial
   const terrPC = stats.co2 / stats.population;
   metricRows.push({
-    label: 'Territorial',
+    label: t('metricTerritorial'),
     value: `${terrPC.toFixed(1)} t/cap`,
     total: `${stats.co2.toFixed(0)} Mt`,
     active: currentMetric === 'co2'
@@ -543,7 +543,7 @@ function showInfoPanel(isoCode) {
   if (stats.cons) {
     const consPC = stats.cons / stats.population;
     metricRows.push({
-      label: 'Consumption',
+      label: t('metricConsumption'),
       value: `${consPC.toFixed(1)} t/cap`,
       total: `${stats.cons.toFixed(0)} Mt`,
       active: currentMetric === 'cons'
@@ -554,7 +554,7 @@ function showInfoPanel(isoCode) {
   if (stats.hist) {
     const histPC = (stats.hist * 1000) / stats.population;
     metricRows.push({
-      label: 'Historical',
+      label: t('metricHistorical'),
       value: `${histPC.toFixed(0)} t/cap`,
       total: `${stats.hist.toFixed(1)} Gt`,
       active: currentMetric === 'hist'
@@ -567,7 +567,7 @@ function showInfoPanel(isoCode) {
     const parisPC = parisVal / stats.population;
     const parisAllowance = PARIS_BUDGET.perCapita;
     metricRows.push({
-      label: 'Paris 1.5°C',
+      label: t('metricParis'),
       value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} t/cap`,
       total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris'
@@ -580,7 +580,7 @@ function showInfoPanel(isoCode) {
     const parisPC = parisVal / stats.population;
     const paris2Allowance = PARIS_2_BUDGET.perCapita;
     metricRows.push({
-      label: 'Paris 2.0°C',
+      label: t('metricParis2'),
       value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} t/cap`,
       total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris2'
@@ -593,37 +593,37 @@ function showInfoPanel(isoCode) {
   const worldPC = isParis
     ? activeParisBudget.perCapita.toFixed(1)
     : (WORLD_TOTALS.co2 / WORLD_TOTALS.population).toFixed(1);
-  const worldPCLabel = isParis ? `Paris ${parisLabel} t/cap` : 'World avg t/cap';
+  const worldPCLabel = isParis ? t('parisTCap')(parisLabel) : t('worldAvgTCap');
 
   panel.innerHTML = `
     <div class="panel-content">
-      <button class="panel-close" onclick="deselectCountry()" title="Close">&times;</button>
-      <button class="panel-minimize" onclick="toggleInfoMinimize()" title="Minimize">
+      <button class="panel-close" onclick="deselectCountry()" title="${t('close')}">&times;</button>
+      <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${t('minimize')}">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>${stats.name}</h2>
+      <h2>${tn(stats.name)}</h2>
 
       <div class="panel-body">
       ${!isScaled ? `
       <button class="resize-btn ${selectedScaled ? 'active' : ''}" onclick="toggleSelectedScale()">
-        ${selectedScaled ? '↩ Reset to Actual Size' : '⬡ Resize to Budget'}
+        ${selectedScaled ? t('resetToActual') : t('resizeToBudget')}
       </button>
       ` : ''}
       
       <div class="stat-hero ${ratioClass}">
         <div class="ratio-value">${ratioPercent}%</div>
-        <div class="ratio-label">${isParis ? `of Paris ${parisLabel} budget` : 'of fair CO₂ budget used'}</div>
-        <div class="ratio-detail">${diffPercent}% ${overUnder} ${isParis ? 'Paris target' : 'fair share'}</div>
+        <div class="ratio-label">${isParis ? t('ofParisBudget')(parisLabel) : t('ofFairBudget')}</div>
+        <div class="ratio-detail">${diffPercent}% ${overUnder} ${isParis ? t('parisTarget') : t('fairShare')}</div>
       </div>
 
       <div class="stat-grid">
         <div class="stat-item">
           <div class="stat-number">${stats.population.toFixed(1)}M</div>
-          <div class="stat-label">Population</div>
+          <div class="stat-label">${t('population')}</div>
         </div>
         <div class="stat-item">
           <div class="stat-number">${stats.metricPerCapita ? stats.metricPerCapita.toFixed(1) : 'N/A'}</div>
-          <div class="stat-label">t CO₂ per capita</div>
+          <div class="stat-label">${t('tCO2PerCapita')}</div>
         </div>
         <div class="stat-item">
           <div class="stat-number">${worldPC}</div>
@@ -631,17 +631,17 @@ function showInfoPanel(isoCode) {
         </div>
         <div class="stat-item">
           <div class="stat-number">${ratio ? ratio.toFixed(2) + '×' : 'N/A'}</div>
-          <div class="stat-label">Scale factor</div>
+          <div class="stat-label">${t('scaleFactor')}</div>
         </div>
       </div>
 
-      <h3>Emissions Breakdown</h3>
+      <h3>${t('emissionsBreakdown')}</h3>
       <table class="metrics-table">
         <thead>
           <tr>
-            <th>Metric</th>
-            <th>Per Capita</th>
-            <th>Total</th>
+            <th>${t('metric')}</th>
+            <th>${t('perCapita')}</th>
+            <th>${t('total')}</th>
           </tr>
         </thead>
         <tbody>
@@ -656,7 +656,7 @@ function showInfoPanel(isoCode) {
       </table>
 
       <div class="budget-bar-container">
-        <div class="budget-bar-label">Fair share budget usage</div>
+        <div class="budget-bar-label">${t('fairShareUsage')}</div>
         <div class="budget-bar">
           <div class="budget-bar-fill ${ratioClass}" style="width: ${Math.min(ratio / 5 * 100, 100)}%">
           </div>
@@ -674,26 +674,17 @@ function showInfoPanel(isoCode) {
 
       <div class="explanation">
         ${isParis ? `
-        <p>To stay within the ${parisLabel} Paris budget, each person can emit ~${activeParisBudget.perCapita.toFixed(1)} t/year.
-        <strong>${stats.name}</strong> emits at <strong>${ratio ? ratio.toFixed(1) + '×' : 'N/A'}</strong> that rate.
-        At this pace, it would exhaust its fair share of the remaining budget in 
-        <strong>${ratio ? Math.max(1, Math.round(activeParisBudget.yearsLeft / ratio)) : '?'} years</strong> instead of ${activeParisBudget.yearsLeft}.</p>
+        ${t('parisExplanation')(parisLabel, activeParisBudget.perCapita.toFixed(1), tn(stats.name), ratio ? ratio.toFixed(1) + '×' : 'N/A', ratio ? Math.max(1, Math.round(activeParisBudget.yearsLeft / ratio)) : '?', activeParisBudget.yearsLeft)}
         <p class="data-note">${stats.usedFallback
-          ? '⚠ Consumption-based data unavailable — using territorial emissions as fallback.'
-          : 'Using consumption-based emissions (includes imports, excludes exports).'}</p>
+          ? t('consFallbackNote')
+          : t('consNote')}</p>
         ` : currentMetric === 'cons' ? `
-        <p>If every person on Earth had an equal CO₂ budget, 
-        <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 
-        its emissions by <strong>${diffPercent}%</strong>.</p>
+        ${t('consExplanation')(tn(stats.name), ratio > 1 ? t('needToReduce') : t('couldIncrease'), diffPercent)}
         <p class="data-note">${stats.usedFallback
-          ? '⚠ Consumption-based data unavailable — using territorial emissions as fallback.'
-          : 'Using consumption-based emissions (includes imports, excludes exports).'}</p>
+          ? t('consFallbackNote')
+          : t('consNote')}</p>
         ` : `
-        <p>If every person on Earth had an equal CO₂ budget, 
-        <strong>${stats.name}</strong> would ${ratio > 1 ? 'need to reduce' : 'could increase'} 
-        its emissions by <strong>${diffPercent}%</strong>.</p>
-        <p>The country is shown at <strong>${ratioPercent}%</strong> of its actual geographic size 
-        to reflect its emissions relative to a fair per-capita share.</p>
+        ${t('defaultExplanation')(tn(stats.name), ratio > 1 ? t('needToReduce') : t('couldIncrease'), diffPercent, ratioPercent)}
         `}
       </div>
       </div>
@@ -743,7 +734,7 @@ function setupControls() {
   document.getElementById('scale-toggle').addEventListener('change', (e) => {
     isScaled = e.target.checked;
     selectedScaled = false;
-    document.getElementById('toggle-label').textContent = isScaled ? 'Budget View' : 'Actual Size';
+    document.getElementById('toggle-label').textContent = isScaled ? t('budgetView') : t('actualSize');
     renderCountries();
     if (selectedCountryId) showInfoPanel(selectedCountryId);
     updateHeaderSummary();
@@ -788,13 +779,13 @@ function createLegend() {
   const legend = document.getElementById('legend');
   const steps = [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
   
-  let html = '<div class="legend-title">Budget Ratio</div><div class="legend-bar">';
+  let html = '<div class="legend-title">' + t('budgetRatio') + '</div><div class="legend-bar">';
   
   for (const val of steps) {
     html += `<div class="legend-step" style="background-color: ${getRatioColor(val)}" title="${val}×"></div>`;
   }
   
-  html += '</div><div class="legend-labels"><span>Under budget</span><span>1×</span><span>Over budget</span></div>';
+  html += '</div><div class="legend-labels"><span>' + t('underBudget') + '</span><span>1×</span><span>' + t('overBudget') + '</span></div>';
   legend.innerHTML = html;
 }
 
@@ -814,17 +805,17 @@ function buildRanking() {
     let perCapita, unit;
     if (currentMetric === 'hist') {
       perCapita = d.hist != null ? (d.hist * 1000) / d.pop : null;
-      unit = 't cumul/cap';
+      unit = t('unitTCumulCap');
     } else if (currentMetric === 'cons' || currentMetric === 'paris' || currentMetric === 'paris2') {
       const val = d.cons != null ? d.cons : d.co2;
       perCapita = val != null ? val / d.pop : null;
-      unit = 't/cap';
+      unit = t('unitTCap');
     } else {
       perCapita = d.co2 != null ? d.co2 / d.pop : null;
-      unit = 't/cap';
+      unit = t('unitTCap');
     }
 
-    entries.push({ id, name: d.name, ratio, perCapita, unit });
+    entries.push({ id, name: tn(d.name), ratio, perCapita, unit });
   }
 
   // Sort worst (highest ratio) first
@@ -905,14 +896,24 @@ document.addEventListener('DOMContentLoaded', () => {
     header.classList.toggle('collapsed');
   });
 
+  // Language switcher
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+  });
+
+  // Apply initial language (auto-detect)
+  document.documentElement.lang = currentLang;
+  document.title = t('pageTitle');
+  applyStaticTranslations();
+
   // Settings summary
   updateHeaderSummary();
 });
 
 function updateHeaderSummary() {
-  const metricNames = { paris: '1.5°C', paris2: '2.0°C', co2: 'Territorial', cons: 'Consumption', hist: 'Historical' };
-  const metric = metricNames[currentMetric] || currentMetric;
-  const scaled = document.getElementById('scale-toggle').checked ? 'Scaled' : 'Actual';
-  const cb = document.getElementById('colorblind-toggle').checked ? ' · CB' : '';
+  const metrics = t('summaryMetrics');
+  const metric = metrics[currentMetric] || currentMetric;
+  const scaled = document.getElementById('scale-toggle').checked ? t('summaryScaled') : t('summaryActual');
+  const cb = document.getElementById('colorblind-toggle').checked ? ' · ' + t('summaryCB') : '';
   document.getElementById('header-summary').textContent = `${metric} · ${scaled}${cb}`;
 }
