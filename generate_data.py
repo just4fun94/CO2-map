@@ -4,6 +4,12 @@ Uses 2023 data as primary year, falls back to 2022 where needed.
 """
 import csv
 import json
+import logging
+import os
+import sys
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+log = logging.getLogger(__name__)
 
 # ISO 3166-1 alpha-3 to numeric mapping (matching world-atlas topojson)
 ISO_A3_TO_NUM = {
@@ -64,11 +70,18 @@ def safe_float(val):
         return None
 
 def main():
+    csv_path = 'owid-co2-data.csv'
+    output_path = 'js/co2data.js'
+
+    if not os.path.isfile(csv_path):
+        log.error(f"Input file not found: {csv_path}")
+        sys.exit(1)
+
     # Read CSV
     rows = {}
     world_row_2023 = None
     
-    with open('owid-co2-data.csv', 'r', encoding='utf-8') as f:
+    with open(csv_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             iso = row.get('iso_code', '').strip()
@@ -167,15 +180,16 @@ def main():
         'hist': round(world_hist / 1000, 3) if world_hist else 1740.0
     }
     
-    print(f"Matched {matched} countries to ISO numeric codes")
-    print(f"Unmatched ISO codes ({len(unmatched_isos)}): {unmatched_isos}")
-    print(f"World totals: {world_totals}")
+    log.info(f"Matched {matched} countries to ISO numeric codes")
+    if unmatched_isos:
+        log.warning(f"Unmatched ISO codes ({len(unmatched_isos)}): {unmatched_isos}")
+    log.info(f"World totals: {world_totals}")
     
     # Check a few key countries
     for num, name in [('840', 'USA'), ('156', 'China'), ('356', 'India'), ('643', 'Russia'), ('276', 'Germany')]:
         c = countries.get(num)
         if c:
-            print(f"  {name}: pop={c['pop']}M, co2={c['co2']}Mt, cons={c['cons']}, hist={c['hist']}Gt")
+            log.info(f"  {name}: pop={c['pop']}M, co2={c['co2']}Mt, cons={c['cons']}, hist={c['hist']}Gt")
     
     # Generate JS file
     js_lines = []
@@ -268,10 +282,30 @@ def main():
     js_lines.append('}')
     js_lines.append('')
     
-    with open('js/co2data.js', 'w', encoding='utf-8') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(js_lines))
     
-    print(f"\nGenerated js/co2data.js with {matched} countries")
+    # Output validation
+    errors = []
+    if matched < 150:
+        errors.append(f"Only {matched} countries matched (expected 150+)")
+    if world_totals['co2'] <= 0:
+        errors.append("World CO2 total is zero or negative")
+    if world_totals['pop'] <= 0:
+        errors.append("World population total is zero or negative")
+    # Spot-check: major countries must be present
+    for num, name in [('840', 'USA'), ('156', 'China'), ('356', 'India')]:
+        if num not in countries:
+            errors.append(f"Missing major country: {name} ({num})")
+        elif countries[num]['co2'] is None:
+            errors.append(f"Missing CO2 data for {name}")
+    
+    if errors:
+        for err in errors:
+            log.error(err)
+        sys.exit(1)
+    
+    log.info(f"Generated {output_path} with {matched} countries")
 
 if __name__ == '__main__':
     main()

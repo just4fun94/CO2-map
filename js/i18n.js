@@ -333,3 +333,33 @@ function applyStaticTranslations() {
     btn.classList.toggle('active', btn.dataset.lang === currentLang);
   });
 }
+
+// ============================================================================
+// Locale-Aware Number Formatting
+// ============================================================================
+
+/**
+ * Format a number according to the current locale.
+ * @param {number} value - The number to format
+ * @param {number} [decimals] - Number of decimal places (default: auto)
+ * @returns {string} Locale-formatted number string
+ */
+function formatNumber(value, decimals) {
+  if (value == null || !isFinite(value)) return 'N/A';
+  const locale = currentLang === 'de' ? 'de-DE' : 'en-US';
+  const opts = decimals != null ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : {};
+  return value.toLocaleString(locale, opts);
+}
+
+/**
+ * Format a number compactly (e.g. "1.2M" or "4.5Gt").
+ * Uses locale-aware decimal separator.
+ */
+function formatCompact(value, decimals = 1) {
+  if (value == null || !isFinite(value)) return 'N/A';
+  const locale = currentLang === 'de' ? 'de-DE' : 'en-US';
+  return value.toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}

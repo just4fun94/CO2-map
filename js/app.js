@@ -6,6 +6,45 @@
  */
 
 // ============================================================================
+// Utility Helpers
+// ============================================================================
+
+/**
+ * Escape HTML special characters to prevent XSS when inserting into innerHTML.
+ */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return String(str);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Debounce a function so it only fires after a pause in calls.
+ */
+function debounce(fn, delay) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+// ============================================================================
+// Named Constants
+// ============================================================================
+
+const LEGEND_STEPS = [0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0, 12.0];
+const LEGEND_LABELS = new Map([[0.1, '0.1\u00d7'], [0.5, '0.5\u00d7'], [1.0, '1\u00d7'], [2.0, '2\u00d7'], [5.0, '5\u00d7'], [12.0, '12\u00d7']]);
+const VALID_METRICS = ['paris', 'paris2', 'co2', 'cons', 'hist'];
+const MIN_SCALE_RATIO = 0.01;
+const MERCATOR_LAT_LIMIT = 85;
+const DEBOUNCE_RENDER_MS = 60;
+
+// ============================================================================
 // Mercator Projection Helpers
 // ============================================================================
 
@@ -13,9 +52,8 @@ const EARTH_RADIUS = 6378137;
 
 function toMercator(lng, lat) {
   const x = EARTH_RADIUS * lng * Math.PI / 180;
-  const latRad = lat * Math.PI / 180;
   // Clamp latitude to avoid infinity at poles
-  const clampedLat = Math.max(-85, Math.min(85, lat));
+  const clampedLat = Math.max(-MERCATOR_LAT_LIMIT, Math.min(MERCATOR_LAT_LIMIT, lat));
   const clampedLatRad = clampedLat * Math.PI / 180;
   const y = EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + clampedLatRad / 2));
   return [x, y];
@@ -157,7 +195,7 @@ function scaleRing(ring, centroid, scaleFactor) {
     const newY = centroid[1] + scaleFactor * (my - centroid[1]);
     const [newLng, newLat] = fromMercator(newX, newY);
     // Clamp latitude so scaled polygons don't exceed Mercator bounds
-    return [newLng, Math.max(-85, Math.min(85, newLat))];
+    return [newLng, Math.max(-MERCATOR_LAT_LIMIT, Math.min(MERCATOR_LAT_LIMIT, newLat))];
   });
 }
 
@@ -169,8 +207,8 @@ function scaleRing(ring, centroid, scaleFactor) {
  * (e.g. US with Alaska/Hawaii, Russia with Chukotka, France with overseas).
  */
 function scaleFeature(feature, ratio) {
-  if (ratio === null || ratio === undefined || isNaN(ratio)) return feature;
-  if (ratio <= 0) ratio = 0.01; // prevent zero/negative
+  if (ratio === null || ratio === undefined || !isFinite(ratio)) return feature;
+  if (ratio <= 0) ratio = MIN_SCALE_RATIO; // prevent zero/negative
 
   const scaleFactor = Math.sqrt(ratio);
   const geometry = feature.geometry;
@@ -222,45 +260,62 @@ function scaleFeature(feature, ratio) {
 // ============================================================================
 
 /**
- * Get color for a budget ratio.
- * Default: Green → Yellow → Red diverging scale
- * Colorblind mode: Blue → White → Orange/Brown (ColorBrewer safe)
+ * Linearly interpolate between color stops defined as [value, r, g, b].
  */
-function getRatioColor(ratio) {
-  if (ratio === null || ratio === undefined) return '#888888';
-  
-  const r = Math.max(0.05, Math.min(ratio, 8));
-
-  if (colorblindMode) {
-    if (r <= 1) {
-      const t = r;
-      const red = Math.round(33 + (245 - 33) * t);
-      const green = Math.round(102 + (245 - 102) * t);
-      const blue = Math.round(172 + (245 - 172) * t);
-      return `rgb(${red}, ${green}, ${blue})`;
-    } else {
-      const t = Math.min((r - 1) / 3, 1);
-      const red = Math.round(245 + (179 - 245) * t);
-      const green = Math.round(245 + (88 - 245) * t);
-      const blue = Math.round(245 + (6 - 245) * t);
-      return `rgb(${red}, ${green}, ${blue})`;
+function interpolateStops(value, stops) {
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [v0, r0, g0, b0] = stops[i];
+    const [v1, r1, g1, b1] = stops[i + 1];
+    if (value <= v1) {
+      const t = (value - v0) / (v1 - v0);
+      return `rgb(${Math.round(r0 + (r1 - r0) * t)}, ${Math.round(g0 + (g1 - g0) * t)}, ${Math.round(b0 + (b1 - b0) * t)})`;
     }
   }
+  const last = stops[stops.length - 1];
+  return `rgb(${last[1]}, ${last[2]}, ${last[3]})`;
+}
 
-  // Default: Green → Yellow → Red
-  if (r <= 1) {
-    const t = r;
-    const red = Math.round(34 + (230 - 34) * t);
-    const green = Math.round(170 + (195 - 170) * t);
-    const blue = Math.round(100 + (50 - 100) * t);
-    return `rgb(${red}, ${green}, ${blue})`;
-  } else {
-    const t = Math.min((r - 1) / 3, 1);
-    const red = Math.round(230 + (200 - 230) * t);
-    const green = Math.round(195 - 195 * t);
-    const blue = Math.round(50 - 50 * t);
-    return `rgb(${red}, ${green}, ${blue})`;
+/**
+ * Get color for a budget ratio using a multi-stop piecewise scale.
+ *
+ * More color stops in the 0.5–3× range give better differentiation
+ * for countries that cluster near the budget line (e.g. Europe).
+ * Range extends to 12× before saturating.
+ *
+ * Default: Green → Yellow → Orange → Red → Dark Red
+ * Colorblind: Blue → White → Orange → Dark Brown (ColorBrewer safe)
+ */
+function getRatioColor(ratio) {
+  if (ratio === null || ratio === undefined || !isFinite(ratio)) return '#888888';
+  
+  const r = Math.max(0.05, Math.min(ratio, 12));
+
+  if (colorblindMode) {
+    return interpolateStops(r, [
+      [0.0,  33, 102, 172],   // deep blue
+      [0.5, 103, 169, 207],   // medium blue
+      [1.0, 245, 245, 245],   // near-white
+      [1.5, 253, 208, 162],   // light peach
+      [2.0, 245, 165,  80],   // orange
+      [3.0, 215, 120,  30],   // dark orange
+      [5.0, 179,  88,   6],   // brown
+      [8.0, 127,  59,   8],   // dark brown
+      [12.0, 84,  36,   5],   // very dark brown
+    ]);
   }
+
+  // Default: diverging green → yellow → red → burgundy
+  return interpolateStops(r, [
+    [0.0,  22, 160,  90],    // deep green
+    [0.5,  80, 190, 110],    // medium green
+    [1.0, 230, 210,  60],    // yellow (exactly at budget)
+    [1.5, 245, 170,  50],    // light orange
+    [2.0, 240, 130,  40],    // orange
+    [3.0, 220,  70,  30],    // red-orange
+    [5.0, 200,  20,  20],    // red
+    [8.0, 150,  10,  30],    // dark red
+    [12.0,100,   5,  20],    // burgundy
+  ]);
 }
 
 // ============================================================================
@@ -408,19 +463,19 @@ function renderCountries() {
           perCapita = country.co2 != null ? country.co2 / country.pop : null;
           unit = t('unitTCO2Cap');
         }
-        const pcText = perCapita != null ? perCapita.toFixed(1) : 'N/A';
+        const pcText = perCapita != null ? formatCompact(perCapita, 1) : 'N/A';
         layer.bindTooltip(
-          `<strong>${tn(country.name)}</strong><br>` +
-          `${pcText} ${unit}<br>` +
-          `${t('budgetRatioLabel')}: ${ratioText}`,
+          `<strong>${escapeHtml(tn(country.name))}</strong><br>` +
+          `${escapeHtml(pcText)} ${escapeHtml(unit)}<br>` +
+          `${escapeHtml(t('budgetRatioLabel'))}: ${escapeHtml(ratioText)}`,
           { sticky: true, className: 'country-tooltip' }
         );
       } else if (TERRITORY_NAMES[feature.id]) {
-        const name = tn(TERRITORY_NAMES[feature.id]);
+        const name = escapeHtml(tn(TERRITORY_NAMES[feature.id]));
         const parent = TERRITORY_PARENTS[feature.id];
         const note = parent
-          ? t('tooltipDataUnder')(tn(parent))
-          : t('tooltipNoData');
+          ? escapeHtml(t('tooltipDataUnder')(tn(parent)))
+          : escapeHtml(t('tooltipNoData'));
         layer.bindTooltip(
           `<strong>${name}</strong><br>${note}`,
           { sticky: true, className: 'country-tooltip' }
@@ -499,15 +554,15 @@ function showInfoPanel(isoCode) {
   const stats = getCountryStats(isoCode, currentMetric);
   
   if (!stats) {
-    const territoryName = tn(TERRITORY_NAMES[isoCode]) || t('unknownTerritory')(isoCode);
+    const territoryName = escapeHtml(tn(TERRITORY_NAMES[isoCode]) || t('unknownTerritory')(isoCode));
     const parent = TERRITORY_PARENTS[isoCode];
     const parentNote = parent
-      ? `<p>${t('dataIncludedUnder')(tn(parent))}</p>`
-      : `<p>${t('noDataAvailable')}</p>`;
+      ? `<p>${t('dataIncludedUnder')(escapeHtml(tn(parent)))}</p>`
+      : `<p>${escapeHtml(t('noDataAvailable'))}</p>`;
     panel.innerHTML = `
       <div class="panel-content">
-        <button class="panel-close" onclick="deselectCountry()" title="${t('close')}">&times;</button>
-        <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${t('minimize')}">
+        <button class="panel-close" onclick="deselectCountry()" title="${escapeHtml(t('close'))}">&times;</button>
+        <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${escapeHtml(t('minimize'))}">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <h2>${territoryName}</h2>
@@ -534,8 +589,8 @@ function showInfoPanel(isoCode) {
   const terrPC = stats.co2 / stats.population;
   metricRows.push({
     label: t('metricTerritorial'),
-    value: `${terrPC.toFixed(1)} ${t('unitTCap')}`,
-    total: `${stats.co2.toFixed(0)} Mt`,
+    value: `${formatCompact(terrPC, 1)} ${t('unitTCap')}`,
+    total: `${formatCompact(stats.co2, 0)} Mt`,
     active: currentMetric === 'co2'
   });
 
@@ -544,8 +599,8 @@ function showInfoPanel(isoCode) {
     const consPC = stats.cons / stats.population;
     metricRows.push({
       label: t('metricConsumption'),
-      value: `${consPC.toFixed(1)} ${t('unitTCap')}`,
-      total: `${stats.cons.toFixed(0)} Mt`,
+      value: `${formatCompact(consPC, 1)} ${t('unitTCap')}`,
+      total: `${formatCompact(stats.cons, 0)} Mt`,
       active: currentMetric === 'cons'
     });
   }
@@ -555,8 +610,8 @@ function showInfoPanel(isoCode) {
     const histPC = (stats.hist * 1000) / stats.population;
     metricRows.push({
       label: t('metricHistorical'),
-      value: `${histPC.toFixed(0)} ${t('unitTCap')}`,
-      total: `${stats.hist.toFixed(1)} Gt`,
+      value: `${formatCompact(histPC, 0)} ${t('unitTCap')}`,
+      total: `${formatCompact(stats.hist, 1)} Gt`,
       active: currentMetric === 'hist'
     });
   }
@@ -568,8 +623,8 @@ function showInfoPanel(isoCode) {
     const parisAllowance = PARIS_BUDGET.perCapita;
     metricRows.push({
       label: t('metricParis'),
-      value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} ${t('unitTCap')}`,
-      total: `${parisVal.toFixed(0)} Mt`,
+      value: `${formatCompact(parisPC, 1)} vs ${formatCompact(parisAllowance, 1)} ${t('unitTCap')}`,
+      total: `${formatCompact(parisVal, 0)} Mt`,
       active: currentMetric === 'paris'
     });
   }
@@ -581,8 +636,8 @@ function showInfoPanel(isoCode) {
     const paris2Allowance = PARIS_2_BUDGET.perCapita;
     metricRows.push({
       label: t('metricParis2'),
-      value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} ${t('unitTCap')}`,
-      total: `${parisVal.toFixed(0)} Mt`,
+      value: `${formatCompact(parisPC, 1)} vs ${formatCompact(paris2Allowance, 1)} ${t('unitTCap')}`,
+      total: `${formatCompact(parisVal, 0)} Mt`,
       active: currentMetric === 'paris2'
     });
   }
@@ -591,17 +646,17 @@ function showInfoPanel(isoCode) {
   const activeParisBudget = currentMetric === 'paris2' ? PARIS_2_BUDGET : PARIS_BUDGET;
   const parisLabel = currentMetric === 'paris2' ? '2.0°C' : '1.5°C';
   const worldPC = isParis
-    ? activeParisBudget.perCapita.toFixed(1)
-    : (WORLD_TOTALS.co2 / WORLD_TOTALS.population).toFixed(1);
+    ? formatCompact(activeParisBudget.perCapita, 1)
+    : formatCompact(WORLD_TOTALS.co2 / WORLD_TOTALS.population, 1);
   const worldPCLabel = isParis ? t('parisTCap')(parisLabel) : t('worldAvgTCap');
 
   panel.innerHTML = `
     <div class="panel-content">
-      <button class="panel-close" onclick="deselectCountry()" title="${t('close')}">&times;</button>
-      <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${t('minimize')}">
+      <button class="panel-close" onclick="deselectCountry()" title="${escapeHtml(t('close'))}">&times;</button>
+      <button class="panel-minimize" onclick="toggleInfoMinimize()" title="${escapeHtml(t('minimize'))}">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 11l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <h2>${tn(stats.name)}</h2>
+      <h2>${escapeHtml(tn(stats.name))}</h2>
 
       <div class="panel-body">
       ${!isScaled ? `
@@ -618,20 +673,20 @@ function showInfoPanel(isoCode) {
 
       <div class="stat-grid">
         <div class="stat-item">
-          <div class="stat-number">${stats.population.toFixed(1)}M</div>
-          <div class="stat-label">${t('population')}</div>
+          <div class="stat-number">${formatCompact(stats.population, 1)}M</div>
+          <div class="stat-label">${escapeHtml(t('population'))}</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number">${stats.metricPerCapita ? stats.metricPerCapita.toFixed(1) : 'N/A'}</div>
-          <div class="stat-label">${t('tCO2PerCapita')}</div>
+          <div class="stat-number">${stats.metricPerCapita ? formatCompact(stats.metricPerCapita, 1) : 'N/A'}</div>
+          <div class="stat-label">${escapeHtml(t('tCO2PerCapita'))}</div>
         </div>
         <div class="stat-item">
           <div class="stat-number">${worldPC}</div>
-          <div class="stat-label">${worldPCLabel}</div>
+          <div class="stat-label">${escapeHtml(worldPCLabel)}</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number">${ratio ? ratio.toFixed(2) + '×' : 'N/A'}</div>
-          <div class="stat-label">${t('scaleFactor')}</div>
+          <div class="stat-number">${ratio ? formatCompact(ratio, 2) + '\u00d7' : 'N/A'}</div>
+          <div class="stat-label">${escapeHtml(t('scaleFactor'))}</div>
         </div>
       </div>
 
@@ -658,17 +713,17 @@ function showInfoPanel(isoCode) {
       <div class="budget-bar-container">
         <div class="budget-bar-label">${t('fairShareUsage')}</div>
         <div class="budget-bar">
-          <div class="budget-bar-fill ${ratioClass}" style="width: ${Math.min(ratio / 5 * 100, 100)}%">
+          <div class="budget-bar-fill ${ratioClass}" style="width: ${Math.min(ratio / 12 * 100, 100)}%">
           </div>
-          <div class="budget-bar-marker" style="left: ${1 / 5 * 100}%"></div>
+          <div class="budget-bar-marker" style="left: ${1 / 12 * 100}%"></div>
         </div>
         <div class="budget-bar-scale">
-          <span>0×</span>
-          <span>1×</span>
-          <span>2×</span>
-          <span>3×</span>
-          <span>4×</span>
-          <span>5×</span>
+          <span>0\u00d7</span>
+          <span>1\u00d7</span>
+          <span>3\u00d7</span>
+          <span>6\u00d7</span>
+          <span>9\u00d7</span>
+          <span>12\u00d7</span>
         </div>
       </div>
 
@@ -717,15 +772,25 @@ function toggleInfoMinimize() {
 // ============================================================================
 
 function setupControls() {
+  // Debounced render for rapid interactions
+  const debouncedRender = debounce(() => {
+    renderCountries();
+    if (selectedCountryId) showInfoPanel(selectedCountryId);
+    if (rankingOpen) buildRanking();
+  }, DEBOUNCE_RENDER_MS);
+
   // Metric toggle buttons
   document.querySelectorAll('.metric-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelector('.metric-btn.active').classList.remove('active');
+      if (!VALID_METRICS.includes(btn.dataset.metric)) return;
+      document.querySelectorAll('.metric-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-checked', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-checked', 'true');
       currentMetric = btn.dataset.metric;
-      renderCountries();
-      if (selectedCountryId) showInfoPanel(selectedCountryId);
-      if (rankingOpen) buildRanking();
+      debouncedRender();
       updateHeaderSummary();
     });
   });
@@ -777,15 +842,21 @@ function showLoading(show) {
 
 function createLegend() {
   const legend = document.getElementById('legend');
-  const steps = [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
   
-  let html = '<div class="legend-title">' + t('budgetRatio') + '</div><div class="legend-bar">';
-  
-  for (const val of steps) {
-    html += `<div class="legend-step" style="background-color: ${getRatioColor(val)}" title="${val}×"></div>`;
+  let html = '<div class="legend-title">' + escapeHtml(t('budgetRatio')) + '</div>';
+  html += '<div class="legend-bar">';
+  for (const val of LEGEND_STEPS) {
+    html += `<div class="legend-step" style="background-color: ${getRatioColor(val)}" title="${val}\u00d7" aria-label="Budget ratio ${val}\u00d7"></div>`;
   }
+  html += '</div>';
+  html += '<div class="legend-ticks">';
+  for (const val of LEGEND_STEPS) {
+    const label = LEGEND_LABELS.get(val) || '';
+    const isBold = val === 1.0;
+    html += `<span class="legend-tick${isBold ? ' legend-tick-bold' : ''}">${label}</span>`;
+  }
+  html += '</div>';
   
-  html += '</div><div class="legend-labels"><span>' + t('underBudget') + '</span><span>1×</span><span>' + t('overBudget') + '</span></div>';
   legend.innerHTML = html;
 }
 
@@ -825,13 +896,13 @@ function buildRanking() {
   entries.forEach((e, i) => {
     const rank = i + 1;
     const color = getRatioColor(e.ratio);
-    const pcText = e.perCapita != null ? e.perCapita.toFixed(1) : 'N/A';
+    const pcText = e.perCapita != null ? formatCompact(e.perCapita, 1) : 'N/A';
     const isSelected = e.id === selectedCountryId;
-    html += `<div class="ranking-item${isSelected ? ' selected' : ''}" data-id="${e.id}">
+    html += `<div class="ranking-item${isSelected ? ' selected' : ''}" data-id="${escapeHtml(e.id)}">
       <span class="ranking-rank">${rank}</span>
       <span class="ranking-color" style="background:${color}"></span>
-      <span class="ranking-name">${e.name}</span>
-      <span class="ranking-value">${pcText} ${e.unit}</span>
+      <span class="ranking-name">${escapeHtml(e.name)}</span>
+      <span class="ranking-value">${escapeHtml(pcText)} ${escapeHtml(e.unit)}</span>
     </div>`;
   });
 
@@ -863,7 +934,8 @@ function toggleRanking() {
 function updateLegendVisibility() {
   const legend = document.getElementById('legend');
   const infoOpen = document.getElementById('info-panel').classList.contains('visible');
-  legend.style.display = (infoOpen || rankingOpen) ? 'none' : '';
+  const isSmallScreen = window.innerWidth <= 640;
+  legend.style.display = (isSmallScreen && (infoOpen || rankingOpen)) ? 'none' : '';
 }
 
 function panToCountry(isoCode) {
