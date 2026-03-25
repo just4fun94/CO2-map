@@ -534,7 +534,7 @@ function showInfoPanel(isoCode) {
   const terrPC = stats.co2 / stats.population;
   metricRows.push({
     label: t('metricTerritorial'),
-    value: `${terrPC.toFixed(1)} t/cap`,
+    value: `${terrPC.toFixed(1)} ${t('unitTCap')}`,
     total: `${stats.co2.toFixed(0)} Mt`,
     active: currentMetric === 'co2'
   });
@@ -544,7 +544,7 @@ function showInfoPanel(isoCode) {
     const consPC = stats.cons / stats.population;
     metricRows.push({
       label: t('metricConsumption'),
-      value: `${consPC.toFixed(1)} t/cap`,
+      value: `${consPC.toFixed(1)} ${t('unitTCap')}`,
       total: `${stats.cons.toFixed(0)} Mt`,
       active: currentMetric === 'cons'
     });
@@ -555,7 +555,7 @@ function showInfoPanel(isoCode) {
     const histPC = (stats.hist * 1000) / stats.population;
     metricRows.push({
       label: t('metricHistorical'),
-      value: `${histPC.toFixed(0)} t/cap`,
+      value: `${histPC.toFixed(0)} ${t('unitTCap')}`,
       total: `${stats.hist.toFixed(1)} Gt`,
       active: currentMetric === 'hist'
     });
@@ -568,7 +568,7 @@ function showInfoPanel(isoCode) {
     const parisAllowance = PARIS_BUDGET.perCapita;
     metricRows.push({
       label: t('metricParis'),
-      value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} t/cap`,
+      value: `${parisPC.toFixed(1)} vs ${parisAllowance.toFixed(1)} ${t('unitTCap')}`,
       total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris'
     });
@@ -581,7 +581,7 @@ function showInfoPanel(isoCode) {
     const paris2Allowance = PARIS_2_BUDGET.perCapita;
     metricRows.push({
       label: t('metricParis2'),
-      value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} t/cap`,
+      value: `${parisPC.toFixed(1)} vs ${paris2Allowance.toFixed(1)} ${t('unitTCap')}`,
       total: `${parisVal.toFixed(0)} Mt`,
       active: currentMetric === 'paris2'
     });
