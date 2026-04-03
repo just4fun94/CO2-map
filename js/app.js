@@ -718,12 +718,12 @@ function showInfoPanel(isoCode) {
           <div class="budget-bar-marker" style="left: ${1 / 12 * 100}%"></div>
         </div>
         <div class="budget-bar-scale">
-          <span>0\u00d7</span>
-          <span>1\u00d7</span>
-          <span>3\u00d7</span>
-          <span>6\u00d7</span>
-          <span>9\u00d7</span>
-          <span>12\u00d7</span>
+          <span style="left:0%">0\u00d7</span>
+          <span style="left:${1/12*100}%">1\u00d7</span>
+          <span style="left:${3/12*100}%">3\u00d7</span>
+          <span style="left:${6/12*100}%">6\u00d7</span>
+          <span style="left:${9/12*100}%">9\u00d7</span>
+          <span style="left:100%">12\u00d7</span>
         </div>
       </div>
 
