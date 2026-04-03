@@ -578,7 +578,7 @@ function initGlobe() {
     .polygonLabel(feature => {
       return buildTooltipHtml(feature);
     })
-    .polygonsTransitionDuration(0);
+    .polygonsTransitionDuration(800);
 
   // Handle window resize for globe
   window.addEventListener('resize', () => {
@@ -642,18 +642,23 @@ function getGlobePolygonAltitude(feature) {
 function renderGlobe() {
   if (!globe || !globeGeojsonData) return;
 
-  // Apply spherical scaling (mirrors the Mercator renderCountries logic)
+  // In globe budget view (isScaled), use height extrusion instead of area scaling.
+  // For individual selected+scaled countries, still use area scaling.
+  const useHeightMode = isScaled;
+
   const features = globeGeojsonData.features.map(feature => {
     const ratio = getBudgetRatio(feature.id, currentMetric);
-    if (ratio !== null && (isScaled || (selectedScaled && feature.id === selectedCountryId))) {
+    // Only area-scale when a single country is selected+scaled (not in global height mode)
+    if (!useHeightMode && ratio !== null && selectedScaled && feature.id === selectedCountryId) {
       return scaleFeatureSpherical(feature, ratio);
     }
     return feature;
   });
 
   // Build outline paths for ghost (dashed) and selection (solid white)
+  // Only show ghost/selection outlines for individual selected+scaled (not height mode)
   const outlinePaths = [];
-  if (selectedCountryId && selectedScaled) {
+  if (selectedCountryId && selectedScaled && !useHeightMode) {
     const ratio = getBudgetRatio(selectedCountryId, currentMetric);
     if (ratio !== null && ratio !== 1) {
       // Ghost dashed outline: original (unscaled) borders
@@ -693,11 +698,25 @@ function renderGlobe() {
     .polygonsData(features)
     .polygonGeoJsonGeometry(f => f.geometry)
     .polygonCapColor(f => getGlobePolygonColor(f))
-    .polygonSideColor(f => getGlobePolygonColor(f))  // Match cap color so thin sides are invisible
+    .polygonSideColor(f => {
+      if (useHeightMode) {
+        // Slightly darker side color for depth effect in height mode
+        const ratio = getBudgetRatio(f.id, currentMetric);
+        return getRatioColor(ratio != null ? ratio : 0);
+      }
+      return getGlobePolygonColor(f);
+    })
     .polygonStrokeColor(() => '#333333')
     .polygonAltitude(f => {
-      // Scaled countries render higher so they always appear above neighbors
-      const isThisScaled = (isScaled || (selectedScaled && f.id === selectedCountryId))
+      if (useHeightMode) {
+        // Height proportional to budget ratio (clamped for visual clarity)
+        const ratio = getBudgetRatio(f.id, currentMetric);
+        if (ratio === null || !isFinite(ratio)) return 0.01;
+        // Scale: 1x = 0.02, higher ratios get taller, max ~0.25
+        return Math.max(0.005, Math.min(ratio * 0.02, 0.25));
+      }
+      // Area-scaling mode: selected+scaled country slightly above neighbors
+      const isThisScaled = (selectedScaled && f.id === selectedCountryId)
         && getBudgetRatio(f.id, currentMetric) !== null;
       return isThisScaled ? 0.02 : 0.01;
     })
