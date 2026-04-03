@@ -17,6 +17,9 @@
   <!-- TopoJSON Client (to decode world-atlas data) -->
   <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
 
+  <!-- Globe.gl (3D globe view) -->
+  <script src="//cdn.jsdelivr.net/npm/globe.gl"></script>
+
   <!-- App Styles -->
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -75,6 +78,7 @@
         <label for="colorblind-toggle">Colorblind</label>
       </div>
 
+      <button class="projection-toggle-btn" id="projection-toggle" title="Switch to globe view">🌐 Globe</button>
       <button class="ranking-toggle-btn" id="ranking-toggle" title="Show country ranking">🏆 Ranking</button>
     </div>
   </header>
@@ -90,6 +94,9 @@
 
   <!-- Map Container -->
   <div id="map" role="application" aria-label="Interactive CO₂ emissions world map"></div>
+
+  <!-- Globe Container (3D view, hidden by default) -->
+  <div id="globe"></div>
 
   <!-- Info Panel (right sidebar) -->
   <div id="info-panel"></div>

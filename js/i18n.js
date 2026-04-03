@@ -31,6 +31,10 @@ const TRANSLATIONS = {
     colorblind: 'Colorblind',
     ranking: '🏆 Ranking',
 
+    // Projection toggle
+    globeView: '🌐 Globe',
+    mapView: '🗺️ Map',
+
     // Ranking panel
     countryRanking: 'Country Ranking',
 
@@ -119,6 +123,9 @@ const TRANSLATIONS = {
     budgetView: 'Budgetansicht',
     colorblind: 'Farbenblind',
     ranking: '🏆 Rangliste',
+
+    globeView: '🌐 Globus',
+    mapView: '🗺️ Karte',
 
     countryRanking: 'Länder-Rangliste',
 
@@ -321,6 +328,7 @@ function applyStaticTranslations() {
   document.getElementById('toggle-label').textContent = isScaled ? t('budgetView') : t('actualSize');
   document.querySelector('label[for="colorblind-toggle"]').textContent = t('colorblind');
   document.getElementById('ranking-toggle').textContent = t('ranking');
+  document.getElementById('projection-toggle').textContent = isGlobeView ? t('mapView') : t('globeView');
 
   // Ranking panel header
   document.querySelector('.ranking-header h3').textContent = t('countryRanking');

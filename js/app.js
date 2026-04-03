@@ -66,6 +66,68 @@ function fromMercator(x, y) {
 }
 
 // ============================================================================
+// Spherical Geometry Helpers (for globe scaling)
+// ============================================================================
+
+const DEG2RAD = Math.PI / 180;
+const RAD2DEG = 180 / Math.PI;
+
+/**
+ * Angular distance (radians) between two points on the sphere via Haversine.
+ */
+function geoDistance(lat1, lon1, lat2, lon2) {
+  const dLat = (lat2 - lat1) * DEG2RAD;
+  const dLon = (lon2 - lon1) * DEG2RAD;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * DEG2RAD) * Math.cos(lat2 * DEG2RAD) * Math.sin(dLon / 2) ** 2;
+  return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Initial bearing (radians) from point 1 to point 2.
+ */
+function geoBearing(lat1, lon1, lat2, lon2) {
+  const phi1 = lat1 * DEG2RAD, phi2 = lat2 * DEG2RAD;
+  const dLambda = (lon2 - lon1) * DEG2RAD;
+  const y = Math.sin(dLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  return Math.atan2(y, x);
+}
+
+/**
+ * Destination point given start, bearing (radians), and angular distance (radians).
+ * Returns [lng, lat] in degrees.
+ */
+function geoDestination(lat, lon, bearing, dist) {
+  const phi1 = lat * DEG2RAD;
+  const lambda1 = lon * DEG2RAD;
+  const sinDist = Math.sin(dist), cosDist = Math.cos(dist);
+  const sinPhi1 = Math.sin(phi1), cosPhi1 = Math.cos(phi1);
+
+  const phi2 = Math.asin(sinPhi1 * cosDist + cosPhi1 * sinDist * Math.cos(bearing));
+  const lambda2 = lambda1 + Math.atan2(
+    Math.sin(bearing) * sinDist * cosPhi1,
+    cosDist - sinPhi1 * Math.sin(phi2)
+  );
+  // Normalize longitude to [-180, 180]
+  let lng = lambda2 * RAD2DEG;
+  lng = ((lng + 540) % 360) - 180;
+  return [lng, phi2 * RAD2DEG];
+}
+
+/**
+ * Geographic centroid of a polygon ring (simple average of [lng, lat] coordinates).
+ */
+function ringCentroidGeo(ring) {
+  let sumLng = 0, sumLat = 0;
+  for (const coord of ring) {
+    sumLng += coord[0];
+    sumLat += coord[1];
+  }
+  return [sumLng / ring.length, sumLat / ring.length];
+}
+
+// ============================================================================
 // Antimeridian Fix (Russia, Fiji, etc.)
 // ============================================================================
 
@@ -256,6 +318,75 @@ function scaleFeature(feature, ratio) {
 }
 
 // ============================================================================
+// Spherical Geometry Scaling (for globe)
+// ============================================================================
+
+/**
+ * Scale a single polygon ring on the sphere around a geographic centroid.
+ * Each vertex is moved along the great circle from the centroid by
+ * scaleFactor × its original angular distance.
+ */
+function scaleRingSpherical(ring, centroidLat, centroidLon, scaleFactor) {
+  return ring.map(coord => {
+    const dist = geoDistance(centroidLat, centroidLon, coord[1], coord[0]);
+    if (dist < 1e-10) return coord; // coincident with centroid
+    const bearing = geoBearing(centroidLat, centroidLon, coord[1], coord[0]);
+    return geoDestination(centroidLat, centroidLon, bearing, dist * scaleFactor);
+  });
+}
+
+/**
+ * Scale a GeoJSON feature's geometry on the sphere by a given area ratio.
+ * Mirrors `scaleFeature` but uses great-circle math instead of Mercator projection.
+ */
+function scaleFeatureSpherical(feature, ratio) {
+  if (ratio === null || ratio === undefined || !isFinite(ratio)) return feature;
+  if (ratio <= 0) ratio = MIN_SCALE_RATIO;
+
+  const scaleFactor = Math.sqrt(ratio);
+  const geometry = feature.geometry;
+  let newCoordinates;
+
+  if (geometry.type === 'Polygon') {
+    const [cLng, cLat] = ringCentroidGeo(geometry.coordinates[0]);
+    newCoordinates = geometry.coordinates.map(ring =>
+      scaleRingSpherical(ring, cLat, cLng, scaleFactor)
+    );
+  } else if (geometry.type === 'MultiPolygon') {
+    // Use centroid of the largest polygon as shared anchor (same strategy as Mercator version)
+    let largestArea = -1;
+    let sharedCentroid = null;
+    for (const polygon of geometry.coordinates) {
+      let area = 0;
+      const ring = polygon[0];
+      for (let i = 0, n = ring.length; i < n; i++) {
+        const j = (i + 1) % n;
+        area += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1];
+      }
+      area = Math.abs(area);
+      if (area > largestArea) {
+        largestArea = area;
+        sharedCentroid = ringCentroidGeo(ring);
+      }
+    }
+    const [cLng, cLat] = sharedCentroid;
+    newCoordinates = geometry.coordinates.map(polygon =>
+      polygon.map(ring => scaleRingSpherical(ring, cLat, cLng, scaleFactor))
+    );
+  } else {
+    return feature;
+  }
+
+  return {
+    ...feature,
+    geometry: {
+      ...geometry,
+      coordinates: newCoordinates
+    }
+  };
+}
+
+// ============================================================================
 // Color Scale
 // ============================================================================
 
@@ -324,6 +455,7 @@ function getRatioColor(ratio) {
 
 let map;
 let geojsonData = null;
+let globeGeojsonData = null; // Original GeoJSON (no antimeridian fix) for globe
 let countriesLayer = null;
 let scaledLayer = null;
 let currentMetric = 'paris';
@@ -334,6 +466,9 @@ let selectedScaled = false;
 let highlightLayer = null;
 let selectionOutlineLayer = null;
 let rankingOpen = false;
+let globe = null;
+let isGlobeView = false;
+let hoveredPolygon = null;
 
 // ============================================================================
 // Map Initialization
@@ -405,6 +540,9 @@ async function loadGeoJSON() {
     }
   });
 
+  // Store original GeoJSON for globe (before antimeridian fix)
+  globeGeojsonData = JSON.parse(JSON.stringify(geojsonData));
+
   // Fix Russia, Fiji etc. — split polygons that cross the antimeridian
   geojsonData = fixAntimeridian(geojsonData);
   
@@ -413,10 +551,233 @@ async function loadGeoJSON() {
 }
 
 // ============================================================================
+// Globe Initialization & Rendering
+// ============================================================================
+
+function initGlobe() {
+  const container = document.getElementById('globe');
+  globe = new Globe(container, { animateIn: false })
+    .globeTileEngineUrl((x, y, l) => `https://a.basemaps.cartocdn.com/light_nolabels/${l}/${x}/${y}.png`)
+    .backgroundColor('#f0f0f0')
+    .showAtmosphere(true)
+    .atmosphereColor('lightskyblue')
+    .atmosphereAltitude(0.15)
+    .width(container.clientWidth)
+    .height(container.clientHeight)
+    .pointOfView({ lat: 20, lng: 0, altitude: 2.5 })
+    .onGlobeClick(() => deselectCountry())
+    .onPolygonClick((polygon) => {
+      if (polygon) selectCountry(polygon.id);
+    })
+    .onPolygonHover((polygon) => {
+      hoveredPolygon = polygon;
+      if (globe) {
+        globe.polygonCapColor(d => getGlobePolygonColor(d));
+      }
+    })
+    .polygonLabel(feature => {
+      return buildTooltipHtml(feature);
+    })
+    .polygonsTransitionDuration(0);
+
+  // Handle window resize for globe
+  window.addEventListener('resize', () => {
+    if (globe && isGlobeView) {
+      const c = document.getElementById('globe');
+      globe.width(c.clientWidth).height(c.clientHeight);
+    }
+  });
+}
+
+function buildTooltipHtml(feature) {
+  const country = CO2_DATA[feature.id];
+  if (country) {
+    const ratio = getBudgetRatio(feature.id, currentMetric);
+    const ratioText = ratio ? `${ratio.toFixed(2)}\u00d7` : 'N/A';
+    let perCapita, unit;
+    if (currentMetric === 'hist') {
+      perCapita = country.hist != null ? (country.hist * 1000) / country.pop : null;
+      unit = t('unitTCumulCap');
+    } else if (currentMetric === 'cons' || currentMetric === 'paris' || currentMetric === 'paris2') {
+      const val = country.cons != null ? country.cons : country.co2;
+      perCapita = val != null ? val / country.pop : null;
+      unit = t('unitTCO2Cap');
+    } else {
+      perCapita = country.co2 != null ? country.co2 / country.pop : null;
+      unit = t('unitTCO2Cap');
+    }
+    const pcText = perCapita != null ? formatCompact(perCapita, 1) : 'N/A';
+    return `<div style="font-family:Inter,sans-serif;font-size:13px;padding:4px 8px;line-height:1.5">
+      <strong>${escapeHtml(tn(country.name))}</strong><br>
+      ${escapeHtml(pcText)} ${escapeHtml(unit)}<br>
+      ${escapeHtml(t('budgetRatioLabel'))}: ${escapeHtml(ratioText)}
+    </div>`;
+  } else if (TERRITORY_NAMES[feature.id]) {
+    const name = escapeHtml(tn(TERRITORY_NAMES[feature.id]));
+    const parent = TERRITORY_PARENTS[feature.id];
+    const note = parent
+      ? escapeHtml(t('tooltipDataUnder')(tn(parent)))
+      : escapeHtml(t('tooltipNoData'));
+    return `<div style="font-family:Inter,sans-serif;font-size:13px;padding:4px 8px;line-height:1.5">
+      <strong>${name}</strong><br>${note}
+    </div>`;
+  }
+  return '';
+}
+
+function getGlobePolygonColor(feature) {
+  const ratio = getBudgetRatio(feature.id, currentMetric);
+  const isHovered = feature === hoveredPolygon;
+  const isSelected = feature.id === selectedCountryId;
+  if (isHovered) return 'steelblue';
+  if (isSelected) return getRatioColor(ratio);
+  return getRatioColor(ratio);
+}
+
+function getGlobePolygonAltitude(feature) {
+  // Small constant altitude to avoid z-fighting with globe tile surface
+  return 0.01;
+}
+
+function renderGlobe() {
+  if (!globe || !globeGeojsonData) return;
+
+  // Apply spherical scaling (mirrors the Mercator renderCountries logic)
+  const features = globeGeojsonData.features.map(feature => {
+    const ratio = getBudgetRatio(feature.id, currentMetric);
+    if (ratio !== null && (isScaled || (selectedScaled && feature.id === selectedCountryId))) {
+      return scaleFeatureSpherical(feature, ratio);
+    }
+    return feature;
+  });
+
+  // Build outline paths for ghost (dashed) and selection (solid white)
+  const outlinePaths = [];
+  if (selectedCountryId && selectedScaled) {
+    const ratio = getBudgetRatio(selectedCountryId, currentMetric);
+    if (ratio !== null && ratio !== 1) {
+      // Ghost dashed outline: original (unscaled) borders
+      const originalFeature = globeGeojsonData.features.find(f => f.id === selectedCountryId);
+      if (originalFeature) {
+        const geom = originalFeature.geometry;
+        const polygons = geom.type === 'Polygon' ? [geom.coordinates]
+          : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+        polygons.forEach(polygon => {
+          polygon.forEach(ring => {
+            outlinePaths.push({
+              points: ring.map(c => ({ lat: c[1], lng: c[0] })),
+              type: 'ghost'
+            });
+          });
+        });
+      }
+      // White solid outline: scaled borders
+      const scaledFeature = features.find(f => f.id === selectedCountryId);
+      if (scaledFeature) {
+        const geom = scaledFeature.geometry;
+        const polygons = geom.type === 'Polygon' ? [geom.coordinates]
+          : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+        polygons.forEach(polygon => {
+          polygon.forEach(ring => {
+            outlinePaths.push({
+              points: ring.map(c => ({ lat: c[1], lng: c[0] })),
+              type: 'selection'
+            });
+          });
+        });
+      }
+    }
+  }
+
+  globe
+    .polygonsData(features)
+    .polygonGeoJsonGeometry(f => f.geometry)
+    .polygonCapColor(f => getGlobePolygonColor(f))
+    .polygonSideColor(f => getGlobePolygonColor(f))  // Match cap color so thin sides are invisible
+    .polygonStrokeColor(() => '#333333')
+    .polygonAltitude(f => {
+      // Scaled countries render higher so they always appear above neighbors
+      const isThisScaled = (isScaled || (selectedScaled && f.id === selectedCountryId))
+        && getBudgetRatio(f.id, currentMetric) !== null;
+      return isThisScaled ? 0.02 : 0.01;
+    })
+    // Ghost (dashed) & selection (solid white) outline paths
+    .pathsData(outlinePaths)
+    .pathPoints('points')
+    .pathPointLat(p => p.lat)
+    .pathPointLng(p => p.lng)
+    .pathPointAlt(d => d.type === 'ghost' ? 0.025 : 0.021)
+    .pathColor(d => d.type === 'ghost' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 1)')
+    .pathStroke(d => d.type === 'ghost' ? 0.3 : 0.5)
+    .pathDashLength(d => d.type === 'ghost' ? 0.005 : 1)
+    .pathDashGap(d => d.type === 'ghost' ? 0.003 : 0)
+    .pathDashAnimateTime(0)
+    .pathTransitionDuration(0);
+}
+
+// ============================================================================
+// Projection Toggle
+// ============================================================================
+
+function switchProjection() {
+  isGlobeView = !isGlobeView;
+  const mapEl = document.getElementById('map');
+  const globeEl = document.getElementById('globe');
+  const btn = document.getElementById('projection-toggle');
+
+  if (isGlobeView) {
+    mapEl.style.display = 'none';
+    globeEl.style.display = 'block';
+    btn.textContent = t('mapView');
+    btn.classList.add('active');
+    btn.title = t('mapView');
+    if (!globe) initGlobe();
+    const c = document.getElementById('globe');
+    globe.width(c.clientWidth).height(c.clientHeight);
+    renderGlobe();
+  } else {
+    globeEl.style.display = 'none';
+    mapEl.style.display = 'block';
+    btn.textContent = t('globeView');
+    btn.classList.remove('active');
+    btn.title = t('globeView');
+    map.invalidateSize();
+    renderCountries();
+  }
+}
+
+function getFeatureCentroid(feature) {
+  const geom = feature.geometry;
+  let coords;
+  if (geom.type === 'Polygon') {
+    coords = geom.coordinates[0];
+  } else if (geom.type === 'MultiPolygon') {
+    // Use largest polygon
+    let maxLen = 0;
+    for (const poly of geom.coordinates) {
+      if (poly[0].length > maxLen) {
+        maxLen = poly[0].length;
+        coords = poly[0];
+      }
+    }
+  }
+  if (!coords || coords.length === 0) return null;
+  let sumLat = 0, sumLng = 0;
+  for (const c of coords) {
+    sumLng += c[0];
+    sumLat += c[1];
+  }
+  return { lat: sumLat / coords.length, lng: sumLng / coords.length };
+}
+
+// ============================================================================
 // Rendering
 // ============================================================================
 
 function renderCountries() {
+  // Delegate to globe renderer if in globe view
+  if (isGlobeView) { renderGlobe(); return; }
+
   // Remove existing layers
   if (countriesLayer) map.removeLayer(countriesLayer);
   if (scaledLayer) map.removeLayer(scaledLayer);
@@ -534,6 +895,7 @@ function selectCountry(isoCode) {
 function deselectCountry() {
   selectedCountryId = null;
   selectedScaled = false;
+  hoveredPolygon = null;
   renderCountries();
   hideInfoPanel();
   if (rankingOpen) buildRanking();
@@ -820,6 +1182,9 @@ function setupControls() {
   document.getElementById('ranking-toggle').addEventListener('click', toggleRanking);
   document.getElementById('ranking-close').addEventListener('click', toggleRanking);
 
+  // Projection toggle
+  document.getElementById('projection-toggle').addEventListener('click', switchProjection);
+
   // Click on map background to deselect
   map.on('click', (e) => {
     if (!e.originalEvent.defaultPrevented) {
@@ -939,6 +1304,14 @@ function updateLegendVisibility() {
 }
 
 function panToCountry(isoCode) {
+  if (isGlobeView) {
+    if (!globeGeojsonData || !globe) return;
+    const feature = globeGeojsonData.features.find(f => f.id === isoCode);
+    if (!feature) return;
+    const centroid = getFeatureCentroid(feature);
+    if (centroid) globe.pointOfView(centroid, 600);
+    return;
+  }
   if (!geojsonData) return;
   const feature = geojsonData.features.find(f => f.id === isoCode);
   if (!feature) return;
@@ -959,6 +1332,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const ro = new ResizeObserver(() => {
     document.documentElement.style.setProperty('--header-height', header.offsetHeight + 'px');
     if (map) map.invalidateSize();
+    if (globe && isGlobeView) {
+      const c = document.getElementById('globe');
+      globe.width(c.clientWidth).height(c.clientHeight);
+    }
   });
   ro.observe(header);
 
