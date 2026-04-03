@@ -353,9 +353,15 @@ function scaleFeatureSpherical(feature, ratio) {
       scaleRingSpherical(ring, cLat, cLng, scaleFactor)
     );
   } else if (geometry.type === 'MultiPolygon') {
-    // Use centroid of the largest polygon as shared anchor (same strategy as Mercator version)
+    // Two-phase scaling for MultiPolygon:
+    // Phase 1: Scale each sub-polygon around its OWN centroid (correct shape).
+    // Phase 2: Reposition each scaled sub-polygon so that inter-polygon
+    //          distances from the main (largest) centroid are also scaled,
+    //          preserving relative layout proportionally.
+
+    // Find centroid of the largest sub-polygon (shared reference point)
     let largestArea = -1;
-    let sharedCentroid = null;
+    let mainCentroid = null;
     for (const polygon of geometry.coordinates) {
       let area = 0;
       const ring = polygon[0];
@@ -366,13 +372,40 @@ function scaleFeatureSpherical(feature, ratio) {
       area = Math.abs(area);
       if (area > largestArea) {
         largestArea = area;
-        sharedCentroid = ringCentroidGeo(ring);
+        mainCentroid = ringCentroidGeo(ring);
       }
     }
-    const [cLng, cLat] = sharedCentroid;
-    newCoordinates = geometry.coordinates.map(polygon =>
-      polygon.map(ring => scaleRingSpherical(ring, cLat, cLng, scaleFactor))
-    );
+    const [mcLng, mcLat] = mainCentroid;
+
+    // Phase 1: scale each polygon from its own centroid
+    const scaledPolygons = geometry.coordinates.map(polygon => {
+      const [cLng, cLat] = ringCentroidGeo(polygon[0]);
+      return {
+        coords: polygon.map(ring => scaleRingSpherical(ring, cLat, cLng, scaleFactor)),
+        origCentroid: [cLng, cLat]
+      };
+    });
+
+    // Phase 2: reposition so spacing from main centroid is also scaled
+    newCoordinates = scaledPolygons.map(({ coords, origCentroid }) => {
+      const [ocLng, ocLat] = origCentroid;
+      // Original distance & bearing from main centroid to this polygon's centroid
+      const dist = geoDistance(mcLat, mcLng, ocLat, ocLng);
+      if (dist < 1e-10) return coords; // this IS the main polygon, no shift needed
+      const bearing = geoBearing(mcLat, mcLng, ocLat, ocLng);
+      // Where this polygon's centroid SHOULD be after scaling distances
+      const [ncLng, ncLat] = geoDestination(mcLat, mcLng, bearing, dist * scaleFactor);
+      // Rigid spherical translation: each vertex keeps its bearing & distance
+      // from the old centroid, placed around the new centroid instead.
+      return coords.map(ring =>
+        ring.map(coord => {
+          const vDist = geoDistance(ocLat, ocLng, coord[1], coord[0]);
+          if (vDist < 1e-10) return [ncLng, ncLat];
+          const vBearing = geoBearing(ocLat, ocLng, coord[1], coord[0]);
+          return geoDestination(ncLat, ncLng, vBearing, vDist);
+        })
+      );
+    });
   } else {
     return feature;
   }
