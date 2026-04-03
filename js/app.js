@@ -323,15 +323,34 @@ function scaleFeature(feature, ratio) {
 
 /**
  * Scale a single polygon ring on the sphere around a geographic centroid.
- * Each vertex is moved along the great circle from the centroid by
- * scaleFactor × its original angular distance.
+ * Inlines Haversine, bearing, and destination for performance.
  */
 function scaleRingSpherical(ring, centroidLat, centroidLon, scaleFactor) {
+  const cLatR = centroidLat * DEG2RAD;
+  const cLonR = centroidLon * DEG2RAD;
+  const sinCLat = Math.sin(cLatR);
+  const cosCLat = Math.cos(cLatR);
+
   return ring.map(coord => {
-    const dist = geoDistance(centroidLat, centroidLon, coord[1], coord[0]);
-    if (dist < 1e-10) return coord; // coincident with centroid
-    const bearing = geoBearing(centroidLat, centroidLon, coord[1], coord[0]);
-    return geoDestination(centroidLat, centroidLon, bearing, dist * scaleFactor);
+    const vLatR = coord[1] * DEG2RAD;
+    const vLonR = coord[0] * DEG2RAD;
+    const dLat = vLatR - cLatR;
+    const dLon = vLonR - cLonR;
+    const a = Math.sin(dLat * 0.5) ** 2 + cosCLat * Math.cos(vLatR) * Math.sin(dLon * 0.5) ** 2;
+    const dist = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (dist < 1e-10) return coord;
+    const cosVLat = Math.cos(vLatR);
+    const bearing = Math.atan2(
+      Math.sin(dLon) * cosVLat,
+      cosCLat * Math.sin(vLatR) - sinCLat * cosVLat * Math.cos(dLon)
+    );
+    const newDist = dist * scaleFactor;
+    const sinD = Math.sin(newDist), cosD = Math.cos(newDist);
+    const phi2 = Math.asin(sinCLat * cosD + cosCLat * sinD * Math.cos(bearing));
+    const lambda2 = cLonR + Math.atan2(Math.sin(bearing) * sinD * cosCLat, cosD - sinCLat * Math.sin(phi2));
+    let lng = lambda2 * RAD2DEG;
+    lng = ((lng + 540) % 360) - 180;
+    return [lng, phi2 * RAD2DEG];
   });
 }
 
@@ -342,6 +361,11 @@ function scaleRingSpherical(ring, centroidLat, centroidLon, scaleFactor) {
 function scaleFeatureSpherical(feature, ratio) {
   if (ratio === null || ratio === undefined || !isFinite(ratio)) return feature;
   if (ratio <= 0) ratio = MIN_SCALE_RATIO;
+
+  // Check cache
+  const cacheKey = `${feature.id}|${ratio}`;
+  const cached = _sphericalScaleCache.get(cacheKey);
+  if (cached) return cached;
 
   const scaleFactor = Math.sqrt(ratio);
   const geometry = feature.geometry;
@@ -386,23 +410,58 @@ function scaleFeatureSpherical(feature, ratio) {
       };
     });
 
-    // Phase 2: reposition so spacing from main centroid is also scaled
+    // Phase 2: reposition via 3D rotation matrix (fast rigid spherical translation).
+    // Instead of per-vertex geoDistance+geoBearing+geoDestination (16 trig ops each),
+    // compute one rotation matrix per sub-polygon, then 4 trig ops per vertex.
     newCoordinates = scaledPolygons.map(({ coords, origCentroid }) => {
       const [ocLng, ocLat] = origCentroid;
-      // Original distance & bearing from main centroid to this polygon's centroid
       const dist = geoDistance(mcLat, mcLng, ocLat, ocLng);
       if (dist < 1e-10) return coords; // this IS the main polygon, no shift needed
       const bearing = geoBearing(mcLat, mcLng, ocLat, ocLng);
-      // Where this polygon's centroid SHOULD be after scaling distances
       const [ncLng, ncLat] = geoDestination(mcLat, mcLng, bearing, dist * scaleFactor);
-      // Rigid spherical translation: each vertex keeps its bearing & distance
-      // from the old centroid, placed around the new centroid instead.
+
+      // Build rotation matrix from old centroid to new centroid on unit sphere
+      const oLatR = ocLat * DEG2RAD, oLonR = ocLng * DEG2RAD;
+      const nLatR = ncLat * DEG2RAD, nLonR = ncLng * DEG2RAD;
+      // Old centroid as 3D unit vector
+      const ox = Math.cos(oLatR) * Math.cos(oLonR);
+      const oy = Math.cos(oLatR) * Math.sin(oLonR);
+      const oz = Math.sin(oLatR);
+      // New centroid as 3D unit vector
+      const nx = Math.cos(nLatR) * Math.cos(nLonR);
+      const ny = Math.cos(nLatR) * Math.sin(nLonR);
+      const nz = Math.sin(nLatR);
+      // Rotation axis = cross(old, new), angle = acos(dot(old, new))
+      let ax = oy * nz - oz * ny;
+      let ay = oz * nx - ox * nz;
+      let az = ox * ny - oy * nx;
+      const axLen = Math.sqrt(ax * ax + ay * ay + az * az);
+      if (axLen < 1e-12) return coords; // centroids coincide after scaling
+      ax /= axLen; ay /= axLen; az /= axLen;
+      const cosA = ox * nx + oy * ny + oz * nz;
+      const sinA = axLen;
+      // Rodrigues' rotation matrix components
+      const C = 1 - cosA;
+      const r00 = cosA + ax * ax * C, r01 = ax * ay * C - az * sinA, r02 = ax * az * C + ay * sinA;
+      const r10 = ay * ax * C + az * sinA, r11 = cosA + ay * ay * C, r12 = ay * az * C - ax * sinA;
+      const r20 = az * ax * C - ay * sinA, r21 = az * ay * C + ax * sinA, r22 = cosA + az * az * C;
+
       return coords.map(ring =>
         ring.map(coord => {
-          const vDist = geoDistance(ocLat, ocLng, coord[1], coord[0]);
-          if (vDist < 1e-10) return [ncLng, ncLat];
-          const vBearing = geoBearing(ocLat, ocLng, coord[1], coord[0]);
-          return geoDestination(ncLat, ncLng, vBearing, vDist);
+          const latR = coord[1] * DEG2RAD;
+          const lonR = coord[0] * DEG2RAD;
+          const cosLat = Math.cos(latR);
+          const px = cosLat * Math.cos(lonR);
+          const py = cosLat * Math.sin(lonR);
+          const pz = Math.sin(latR);
+          // Apply rotation
+          const rx = r00 * px + r01 * py + r02 * pz;
+          const ry = r10 * px + r11 * py + r12 * pz;
+          const rz = r20 * px + r21 * py + r22 * pz;
+          // Back to lat/lng
+          let lng = Math.atan2(ry, rx) * RAD2DEG;
+          lng = ((lng + 540) % 360) - 180;
+          return [lng, Math.asin(Math.max(-1, Math.min(1, rz))) * RAD2DEG];
         })
       );
     });
@@ -410,13 +469,15 @@ function scaleFeatureSpherical(feature, ratio) {
     return feature;
   }
 
-  return {
+  const result = {
     ...feature,
     geometry: {
       ...geometry,
       coordinates: newCoordinates
     }
   };
+  _sphericalScaleCache.set(cacheKey, result);
+  return result;
 }
 
 // ============================================================================
@@ -497,6 +558,10 @@ let colorblindMode = false;
 let selectedCountryId = null;
 let selectedScaled = false;
 let highlightLayer = null;
+
+// Cache for spherical scaling results: key = `${featureId}|${ratio}`, value = scaled feature
+const _sphericalScaleCache = new Map();
+function clearSphericalScaleCache() { _sphericalScaleCache.clear(); }
 let selectionOutlineLayer = null;
 let rankingOpen = false;
 let globe = null;
@@ -764,7 +829,8 @@ function renderGlobe() {
     .pathDashLength(d => d.type === 'ghost' ? 0.005 : 1)
     .pathDashGap(d => d.type === 'ghost' ? 0.003 : 0)
     .pathDashAnimateTime(0)
-    .pathTransitionDuration(0);
+    .pathTransitionDuration(0)
+    .polygonsTransitionDuration(selectedScaled || isScaled ? 0 : 800);
 }
 
 // ============================================================================
@@ -1204,6 +1270,7 @@ function setupControls() {
       btn.classList.add('active');
       btn.setAttribute('aria-checked', 'true');
       currentMetric = btn.dataset.metric;
+      clearSphericalScaleCache();
       debouncedRender();
       updateHeaderSummary();
     });
